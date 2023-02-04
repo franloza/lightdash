@@ -6,6 +6,7 @@ import {
 import { WarehouseClient } from './types';
 import { BigqueryWarehouseClient } from './warehouseClients/BigqueryWarehouseClient';
 import { DatabricksWarehouseClient } from './warehouseClients/DatabricksWarehouseClient';
+import { DuckdbWarehouseClient } from './warehouseClients/DuckdbsWarehouseClient';
 import { PostgresWarehouseClient } from './warehouseClients/PostgresWarehouseClient';
 import { RedshiftWarehouseClient } from './warehouseClients/RedshiftWarehouseClient';
 import { SnowflakeWarehouseClient } from './warehouseClients/SnowflakeWarehouseClient';
@@ -24,6 +25,8 @@ export const warehouseClientFromCredentials = (
             return new BigqueryWarehouseClient(credentials);
         case WarehouseTypes.DATABRICKS:
             return new DatabricksWarehouseClient(credentials);
+        case WarehouseTypes.DUCKDB:
+            return new DuckdbWarehouseClient(credentials);
         default:
             const never: never = credentials;
             throw new UnexpectedServerError(

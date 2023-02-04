@@ -563,6 +563,7 @@ export enum WarehouseTypes {
     REDSHIFT = 'redshift',
     SNOWFLAKE = 'snowflake',
     DATABRICKS = 'databricks',
+    DUCKDB = 'duckdb',
 }
 
 export type CreateBigqueryCredentials = {
@@ -609,6 +610,24 @@ export type CreateDatabricksCredentials = {
     personalAccessToken: string;
     startOfWeek?: WeekDay | null;
 };
+
+export type CreateDuckdbCredentials = {
+    type: WarehouseTypes.DUCKDB;
+    host: string;
+    user: string;
+    password: string;
+    port: number;
+    dbname: string;
+    schema: string;
+    http_scheme: string;
+    startOfWeek?: WeekDay | null;
+};
+
+export type DuckdbCredentials = Omit<
+    CreateDuckdbCredentials,
+    SensitiveCredentialsFieldNames
+>;
+
 
 export type DatabricksCredentials = Omit<
     CreateDatabricksCredentials,
@@ -684,14 +703,16 @@ export type CreateWarehouseCredentials =
     | CreateBigqueryCredentials
     | CreatePostgresCredentials
     | CreateSnowflakeCredentials
-    | CreateDatabricksCredentials;
+    | CreateDatabricksCredentials
+    | CreateDuckdbCredentials;
 
 export type WarehouseCredentials =
     | SnowflakeCredentials
     | RedshiftCredentials
     | PostgresCredentials
     | BigqueryCredentials
-    | DatabricksCredentials;
+    | DatabricksCredentials
+    | DuckdbCredentials;
 
 export const DbtProjectTypeLabels: Record<DbtProjectType, string> = {
     [DbtProjectType.DBT]: 'dbt local server',

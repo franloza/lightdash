@@ -27,6 +27,7 @@ import { DatabricksSchemaInput } from './WarehouseForms/DatabricksForm';
 import { PostgresSchemaInput } from './WarehouseForms/PostgresForm';
 import { RedshiftSchemaInput } from './WarehouseForms/RedshiftForm';
 import { SnowflakeSchemaInput } from './WarehouseForms/SnowflakeForm';
+import { DuckdbSchemaInput } from './WarehouseForms/DuckdbForm';
 
 interface DbtSettingsFormProps {
     disabled: boolean;
@@ -140,6 +141,8 @@ const DbtSettingsForm: FC<DbtSettingsFormProps> = ({
                 return <SnowflakeSchemaInput disabled={disabled} />;
             case WarehouseTypes.DATABRICKS:
                 return <DatabricksSchemaInput disabled={disabled} />;
+            case WarehouseTypes.DUCKDB:
+                return <DuckdbSchemaInput disabled={disabled} />;
             default: {
                 return <></>;
             }

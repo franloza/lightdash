@@ -65,6 +65,8 @@ const convertTimezone = (
             return timestampSql;
         case SupportedDbtAdapter.DATABRICKS:
             return timestampSql;
+        case SupportedDbtAdapter.DUCKDB:
+            return timestampSql;
         default:
             return assertUnreachable(
                 adapterType,

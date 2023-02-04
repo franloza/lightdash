@@ -4,6 +4,7 @@ import { useWatch } from 'react-hook-form';
 import SelectField from '../ReactHookForm/Select';
 import BigQueryForm from './WarehouseForms/BigQueryForm';
 import DatabricksForm from './WarehouseForms/DatabricksForm';
+import DuckDBForm from './WarehouseForms/DuckDBForm';
 import PostgresForm from './WarehouseForms/PostgresForm';
 import RedshiftForm from './WarehouseForms/RedshiftForm';
 import SnowflakeForm from './WarehouseForms/SnowflakeForm';
@@ -14,6 +15,7 @@ const WarehouseTypeLabels = {
     [WarehouseTypes.REDSHIFT]: 'Redshift',
     [WarehouseTypes.SNOWFLAKE]: 'Snowflake',
     [WarehouseTypes.DATABRICKS]: 'Databricks',
+    [WarehouseTypes.DUCKDB]: 'DuckDB',
 };
 
 const WarehouseTypeForms = {
@@ -22,6 +24,7 @@ const WarehouseTypeForms = {
     [WarehouseTypes.REDSHIFT]: RedshiftForm,
     [WarehouseTypes.SNOWFLAKE]: SnowflakeForm,
     [WarehouseTypes.DATABRICKS]: DatabricksForm,
+    [WarehouseTypes.DUCKDB]: DuckDBForm,
 };
 
 interface WarehouseSettingsFormProps {

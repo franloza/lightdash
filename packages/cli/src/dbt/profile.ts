@@ -4,6 +4,7 @@ import * as yaml from 'js-yaml';
 import * as path from 'path';
 import { convertBigquerySchema } from './targets/Bigquery';
 import { convertDatabricksSchema } from './targets/databricks';
+import { convertDuckdbSchema } from './targets/duckdb';
 import { convertPostgresSchema } from './targets/postgres';
 import { convertRedshiftSchema } from './targets/redshift';
 import { convertSnowflakeSchema } from './targets/snowflake';
@@ -58,6 +59,8 @@ export const warehouseCredentialsFromDbtTarget = async (
         case 'redshift':
             return convertRedshiftSchema(target);
         case 'databricks':
+            return convertDatabricksSchema(target);
+        case 'duckdb':
             return convertDatabricksSchema(target);
         default:
             throw new ParseError(

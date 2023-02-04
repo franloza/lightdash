@@ -3,6 +3,7 @@ import { WarehouseTypes } from '@lightdash/common';
 import React, { FC } from 'react';
 import BigQuery from './Assets/bigquery.svg';
 import Databricks from './Assets/databricks.svg';
+import DuckDB from './Assets/duckdb.svg';
 import PostgressLogo from './Assets/postgresql.svg';
 import Redshift from './Assets/redshift.svg';
 import Snowflake from './Assets/snowflake.svg';
@@ -32,6 +33,11 @@ export const WarehouseTypeLabels = [
         label: 'Databricks',
         key: WarehouseTypes.DATABRICKS,
         icon: <WarehouseIcon src={Databricks} alt="Databricks" />,
+    },
+    {
+        label: 'DuckDB',
+        key: WarehouseTypes.DUCKDB,
+        icon: <WarehouseIcon src={DuckDB} alt="DuckDB" />,
     },
     {
         label: 'PostgreSQL',

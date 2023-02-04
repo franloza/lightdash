@@ -226,12 +226,45 @@ const databricksConfig: WarehouseConfig = {
     },
 };
 
+const duckdbConfig: WarehouseConfig = {
+    getSqlForTruncatedDate: (timeFrame, originalSql) =>
+        `DATE_TRUNC('${timeFrame}', ${originalSql})`,
+    getSqlForDatePart: (timeFrame: TimeFrames, originalSql: string) => {
+        const datePart = timeFrameToDatePartMap[timeFrame];
+        if (!datePart) {
+            throw new ParseError(`Cannot recognise date part for ${timeFrame}`);
+        }
+        return `DATE_PART('${datePart}', ${originalSql})`;
+    },
+    getSqlForDatePartName: (timeFrame: TimeFrames, originalSql: string) => {
+        const timeFrameExpressionsFn: Record<
+            TimeFrames,
+            (() => string) | null
+        > = {
+            ...nullTimeFrameMap,
+            [TimeFrames.DAY_OF_WEEK_NAME]: () =>
+                `DECODE(TO_CHAR(${originalSql}, 'DY'), 'Mon', 'Monday', 'Tue', 'Tuesday', 'Wed', 'Wednesday', 'Thu', 'Thursday', 'Fri', 'Friday', 'Sat', 'Saturday', 'Sun', 'Sunday')`,
+            [TimeFrames.MONTH_NAME]: () => `TO_CHAR(${originalSql}, 'MMMM')`,
+            [TimeFrames.QUARTER_NAME]: () =>
+                `CONCAT('Q', DATE_PART('QUARTER', ${originalSql}))`,
+        };
+        const formatExpressionFn = timeFrameExpressionsFn[timeFrame];
+        if (!formatExpressionFn) {
+            throw new ParseError(
+                `Cannot recognise format expression for ${timeFrame}`,
+            );
+        }
+        return formatExpressionFn();
+    },
+};
+
 const warehouseConfigs: Record<SupportedDbtAdapter, WarehouseConfig> = {
     [SupportedDbtAdapter.BIGQUERY]: bigqueryConfig,
     [SupportedDbtAdapter.SNOWFLAKE]: snowflakeConfig,
     [SupportedDbtAdapter.REDSHIFT]: postgresConfig,
     [SupportedDbtAdapter.POSTGRES]: postgresConfig,
     [SupportedDbtAdapter.DATABRICKS]: databricksConfig,
+    [SupportedDbtAdapter.DUCKDB]: duckdbConfig,
 };
 
 const getSqlForTruncatedDate: TimeFrameConfig['getSql'] = (

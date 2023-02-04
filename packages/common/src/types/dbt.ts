@@ -23,6 +23,7 @@ export enum SupportedDbtAdapter {
     SNOWFLAKE = 'snowflake',
     REDSHIFT = 'redshift',
     POSTGRES = 'postgres',
+    DUCKDB = 'duckdb',
 }
 
 export type DbtNodeConfig = {
@@ -114,6 +115,7 @@ export const normaliseModelDatabase = (
             return { ...model, database: model.database as string };
         case SupportedDbtAdapter.DATABRICKS:
             return { ...model, database: model.database || 'DEFAULT' };
+        case SupportedDbtAdapter.DUCKDB:
         default:
             return assertUnreachable(
                 targetWarehouse,

@@ -48,6 +48,15 @@ const credentialsTarget = (
                     ),
                 ),
             };
+        case WarehouseTypes.DUCKDB:
+            return {
+                target: {
+
+                },
+                environment: {
+                    
+                }
+            }
         case WarehouseTypes.REDSHIFT:
             return {
                 target: {
