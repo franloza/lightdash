@@ -2,11 +2,14 @@ import { NonIdealState, Spinner } from '@blueprintjs/core';
 import { FC } from 'react';
 import { useParams } from 'react-router-dom';
 import { useUnmount } from 'react-use';
+import ErrorState from '../components/common/ErrorState';
 import Page from '../components/common/Page/Page';
 import { PageContentWrapper } from '../components/common/Page/Page.styles';
+import SpaceBrowser from '../components/Explorer/SpaceBrowser';
 import ForbiddenPanel from '../components/ForbiddenPanel';
 import LandingPanel from '../components/Home/LandingPanel';
 import OnboardingPanel from '../components/Home/OnboardingPanel/index';
+import RecentlyUpdatedPanel from '../components/Home/RecentlyUpdatedPanel';
 import {
     useOnboardingStatus,
     useProjectSavedChartStatus,
@@ -42,25 +45,11 @@ const Home: FC = () => {
     }
 
     if (error) {
-        return (
-            <div style={{ marginTop: '20px' }}>
-                <NonIdealState
-                    title="Unexpected error"
-                    description={error.error.message}
-                />
-            </div>
-        );
+        return <ErrorState error={error.error} />;
     }
 
     if (!project.data || !onboarding.data) {
-        return (
-            <div style={{ marginTop: '20px' }}>
-                <NonIdealState
-                    title="Unexpected error"
-                    description="Please contact support"
-                />
-            </div>
-        );
+        return <ErrorState />;
     }
 
     return (
@@ -72,11 +61,18 @@ const Home: FC = () => {
                         userName={user.data?.firstName}
                     />
                 ) : (
-                    <LandingPanel
-                        hasSavedChart={!!savedChartStatus.data}
-                        userName={user.data?.firstName}
-                        projectUuid={project.data.projectUuid}
-                    />
+                    <>
+                        <LandingPanel
+                            userName={user.data?.firstName}
+                            projectUuid={project.data.projectUuid}
+                        />
+
+                        <SpaceBrowser projectUuid={project.data.projectUuid} />
+
+                        <RecentlyUpdatedPanel
+                            projectUuid={project.data.projectUuid}
+                        />
+                    </>
                 )}
             </PageContentWrapper>
         </Page>

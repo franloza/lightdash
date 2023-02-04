@@ -6,3 +6,4 @@ export * from './warehouseClients/DuckdbWarehouseClient';
 export * from './warehouseClients/PostgresWarehouseClient';
 export * from './warehouseClients/RedshiftWarehouseClient';
 export * from './warehouseClients/SnowflakeWarehouseClient';
+export * from './warehouseClients/TrinoWarehouseClient';

@@ -7,12 +7,9 @@ import {
     isDimension,
     isField,
     MetricType,
-} from '../types/field';
-import {
-    AdditionalMetric,
-    isAdditionalMetric,
     TableCalculation,
-} from '../types/metricQuery';
+} from '../types/field';
+import { AdditionalMetric, isAdditionalMetric } from '../types/metricQuery';
 import { TimeFrames } from '../types/timeFrames';
 
 export const formatBoolean = <T>(v: T) =>
@@ -39,7 +36,7 @@ export const getDateFormat = (
     return dateForm;
 };
 
-const isMomentInput = (value: unknown): value is MomentInput =>
+export const isMomentInput = (value: unknown): value is MomentInput =>
     typeof value === 'string' ||
     typeof value === 'number' ||
     value instanceof Date ||
@@ -230,6 +227,8 @@ export function formatFieldValue(
             return `${value}`;
         case DimensionType.NUMBER:
         case MetricType.NUMBER:
+        case MetricType.PERCENTILE:
+        case MetricType.MEDIAN:
         case MetricType.AVERAGE:
         case MetricType.COUNT:
         case MetricType.COUNT_DISTINCT:

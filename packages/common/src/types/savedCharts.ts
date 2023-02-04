@@ -1,12 +1,26 @@
+import assertUnreachable from '../utils/assertUnreachable';
+import { ConditionalFormattingConfig } from './conditionalFormatting';
 import { CompactOrAlias } from './field';
 import { MetricQuery } from './metricQuery';
 import { UpdatedByUser } from './user';
+
+export enum ChartKind {
+    LINE = 'line',
+    HORIZONTAL_BAR = 'horizontal_bar',
+    VERTICAL_BAR = 'vertical_bar',
+    SCATTER = 'scatter',
+    AREA = 'area',
+    MIXED = 'mixed',
+    TABLE = 'table',
+    BIG_NUMBER = 'big_number',
+}
 
 export enum ChartType {
     CARTESIAN = 'cartesian',
     TABLE = 'table',
     BIG_NUMBER = 'big_number',
 }
+
 export type BigNumber = {
     label?: string;
     style?: CompactOrAlias;
@@ -23,11 +37,13 @@ export type ColumnProperties = {
     name?: string;
     frozen?: boolean;
 };
+
 export type TableChart = {
     showColumnCalculation?: boolean;
     showTableNames?: boolean;
     hideRowNumbers?: boolean;
     columns?: Record<string, ColumnProperties>;
+    conditionalFormattings?: ConditionalFormattingConfig[];
 };
 
 type TableChartConfig = {
@@ -52,6 +68,29 @@ export const isPivotReferenceWithValues = (
 ): value is Required<PivotReference> =>
     !!value.pivotValues && value.pivotValues.length > 0;
 
+export type MarkLineData = {
+    yAxis?: string;
+    xAxis?: string;
+    name: string;
+    lineStyle?: {
+        color: string;
+    };
+    label?: {
+        formatter?: string;
+    };
+};
+export type MarkLine = {
+    data: MarkLineData[];
+    symbol?: string;
+    lineStyle?: {
+        color: string;
+        width: number;
+        type: string;
+    };
+    label?: {
+        formatter?: string;
+    };
+};
 export type Series = {
     encode: {
         xRef: PivotReference;
@@ -75,12 +114,7 @@ export type Series = {
     areaStyle?: {};
     showSymbol?: boolean;
     smooth?: boolean;
-    markLine?: {
-        data: Record<string, string>[];
-        label: {
-            formatter?: string;
-        };
-    };
+    markLine?: MarkLine;
 };
 
 export type EchartsLegend = {
@@ -178,6 +212,8 @@ export type SavedChart = {
     organizationUuid: string;
     spaceUuid: string;
     spaceName: string;
+    views: number;
+    pinnedListUuid: string | undefined;
 };
 
 export type CreateSavedChart = Omit<
@@ -188,6 +224,8 @@ export type CreateSavedChart = Omit<
     | 'organizationUuid'
     | 'spaceUuid'
     | 'spaceName'
+    | 'pinnedListUuid'
+    | 'views'
 > & { spaceUuid?: string };
 
 export type CreateSavedChartVersion = Omit<
@@ -199,11 +237,12 @@ export type CreateSavedChartVersion = Omit<
     | 'organizationUuid'
     | 'spaceUuid'
     | 'spaceName'
+    | 'pinnedListUuid'
+    | 'views'
 >;
 
-export type UpdateSavedChart = Pick<
-    SavedChart,
-    'name' | 'description' | 'spaceUuid'
+export type UpdateSavedChart = Partial<
+    Pick<SavedChart, 'name' | 'description' | 'spaceUuid'>
 >;
 
 export type UpdateMultipleSavedChart = Pick<
@@ -219,7 +258,9 @@ export type SpaceQuery = Pick<
     | 'updatedByUser'
     | 'description'
     | 'spaceUuid'
->;
+    | 'views'
+    | 'pinnedListUuid'
+> & { chartType: ChartKind | undefined };
 
 export const isCompleteLayout = (
     value: CartesianChartLayout | undefined,
@@ -282,3 +323,52 @@ export const isSeriesWithMixedChartTypes = (
                 }`,
         ),
     ).size >= 2;
+
+export const getChartType = (
+    chartType: ChartType,
+    value: ChartConfig['config'],
+): ChartKind | undefined => {
+    if (value === undefined) return undefined;
+
+    switch (chartType) {
+        case ChartType.BIG_NUMBER:
+            return ChartKind.BIG_NUMBER;
+        case ChartType.TABLE:
+            return ChartKind.TABLE;
+        case ChartType.CARTESIAN:
+            if (isCartesianChartConfig(value)) {
+                const { series } = value.eChartsConfig;
+
+                if (isSeriesWithMixedChartTypes(series)) {
+                    return ChartKind.MIXED;
+                }
+
+                const type = series?.[0]?.type;
+                if (!type) return undefined;
+
+                switch (type) {
+                    case CartesianSeriesType.AREA:
+                        return ChartKind.AREA;
+                    case CartesianSeriesType.BAR:
+                        return value.layout.flipAxes
+                            ? ChartKind.HORIZONTAL_BAR
+                            : ChartKind.VERTICAL_BAR;
+                    case CartesianSeriesType.LINE:
+                        return series?.[0]?.areaStyle
+                            ? ChartKind.AREA
+                            : ChartKind.LINE;
+                    case CartesianSeriesType.SCATTER:
+                        return ChartKind.SCATTER;
+                    default:
+                        return assertUnreachable(
+                            type,
+                            `Unknown cartesian series type: ${type}`,
+                        );
+                }
+            }
+
+            return undefined;
+        default:
+            return undefined;
+    }
+};

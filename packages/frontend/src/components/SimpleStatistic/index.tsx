@@ -1,4 +1,5 @@
 import React, { FC } from 'react';
+import { Textfit } from 'react-textfit';
 import { useVisualizationContext } from '../LightdashVisualization/VisualizationProvider';
 import { EmptyChart, LoadingChart } from '../SimpleChart';
 import { BigNumberContextMenu } from './BigNumberContextMenu';
@@ -25,18 +26,33 @@ const SimpleStatistic: FC<SimpleStatisticsProps> = ({ ...wrapperProps }) => {
     return validData ? (
         <BigNumberContainer {...wrapperProps}>
             {isSqlRunner ? (
-                <BigNumber>{bigNumber}</BigNumber>
+                <Textfit mode="single" style={{ width: '45%' }} max={100}>
+                    <BigNumber>{bigNumber}</BigNumber>
+                </Textfit>
             ) : (
                 <BigNumberContextMenu
-                    renderTarget={({ ref, isOpen: _isOpen, onClick }) => (
-                        <BigNumber $interactive ref={ref} onClick={onClick}>
-                            {bigNumber}
-                        </BigNumber>
+                    renderTarget={({ ref, ...popoverProps }) => (
+                        <Textfit
+                            mode="single"
+                            style={{ width: '45%' }}
+                            max={100}
+                        >
+                            <BigNumber
+                                $interactive
+                                ref={ref}
+                                onClick={(popoverProps as any).onClick}
+                            >
+                                {bigNumber}
+                            </BigNumber>
+                        </Textfit>
                     )}
                 />
             )}
-
-            <BigNumberLabel>{bigNumberLabel || defaultLabel}</BigNumberLabel>
+            <Textfit mode="single" style={{ width: '80%' }} max={20}>
+                <BigNumberLabel>
+                    {bigNumberLabel || defaultLabel}
+                </BigNumberLabel>
+            </Textfit>
         </BigNumberContainer>
     ) : (
         <EmptyChart />

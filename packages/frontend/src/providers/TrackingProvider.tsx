@@ -47,7 +47,8 @@ type GenericEvent = {
         | EventName.CREATE_PROJECT_MANUALLY_BUTTON_CLICKED
         | EventName.COPY_CREATE_PROJECT_CODE_BUTTON_CLICKED
         | EventName.TRY_DEMO_CLICKED
-        | EventName.GO_TO_LINK_CLICKED;
+        | EventName.GO_TO_LINK_CLICKED
+        | EventName.USAGE_ANALYTICS_CLICKED;
     properties?: {};
 };
 
@@ -86,7 +87,13 @@ export type SetupStepClickedEvent = {
 export type SearchResultClickedEvent = {
     name: EventName.SEARCH_RESULT_CLICKED;
     properties: {
-        type: 'space' | 'dashboard' | 'saved_chart' | 'table' | 'field';
+        type:
+            | 'space'
+            | 'dashboard'
+            | 'saved_chart'
+            | 'table'
+            | 'field'
+            | 'page';
         id: string;
     };
 };

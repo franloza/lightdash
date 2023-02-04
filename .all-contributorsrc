@@ -858,6 +858,61 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "annebelleo",
+      "name": "Annebelle Olminkhof",
+      "avatar_url": "https://avatars.githubusercontent.com/u/20630578?v=4",
+      "profile": "https://annebelleo.github.io",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "vapolonio",
+      "name": "Victor Apolonio",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11734877?v=4",
+      "profile": "https://apolonio.dev",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "rodolfo42",
+      "name": "Rodolfo Ferreira",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1674699?v=4",
+      "profile": "http://rodolfo42.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "patrickbrusven",
+      "name": "Patrick Brusven",
+      "avatar_url": "https://avatars.githubusercontent.com/u/84103244?v=4",
+      "profile": "https://www.patrickbrusven.com/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "thomaspurchas",
+      "name": "Thomas Purchas",
+      "avatar_url": "https://avatars.githubusercontent.com/u/782311?v=4",
+      "profile": "https://github.com/thomaspurchas",
+      "contributions": [
+        "code",
+        "bug"
+      ]
+    },
+    {
+      "login": "robolyst",
+      "name": "Adrian Letchford",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7521223?v=4",
+      "profile": "http://www.dradrian.com",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,

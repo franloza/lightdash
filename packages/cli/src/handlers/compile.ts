@@ -8,6 +8,7 @@ import {
     ParseError,
 } from '@lightdash/common';
 import { warehouseClientFromCredentials } from '@lightdash/warehouses';
+import inquirer from 'inquirer';
 import path from 'path';
 import { LightdashAnalytics } from '../analytics/analytics';
 import { getDbtContext } from '../dbt/context';
@@ -21,6 +22,7 @@ import { validateDbtModel } from '../dbt/validation';
 import GlobalState from '../globalState';
 import * as styles from '../styles';
 import { dbtCompile, DbtCompileOptions } from './dbt/compile';
+import { getDbtVersion } from './dbt/getDbtVersion';
 
 type GenerateHandlerOptions = DbtCompileOptions & {
     projectDir: string;
@@ -37,6 +39,29 @@ export const compile = async (options: GenerateHandlerOptions) => {
         properties: {},
     });
 
+    const dbtVersion = await getDbtVersion();
+    GlobalState.debug(`> DBT version ${dbtVersion}`);
+
+    if (!dbtVersion.includes('1.3.')) {
+        if (process.env.CI === 'true') {
+            console.error(
+                `Your DBT version ${dbtVersion} does not match our supported version (1.3.0), this could cause problems on compile or validation.`,
+            );
+        } else {
+            const answers = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'isConfirm',
+                    message: `${styles.warning(
+                        `Your DBT version ${dbtVersion} does not match our supported version (1.3.0), this could cause problems on compile or validation.`,
+                    )}\nDo you still want to continue?`,
+                },
+            ]);
+            if (!answers.isConfirm) {
+                throw new Error(`Unsupported DBT version ${dbtVersion}`);
+            }
+        }
+    }
     await dbtCompile(options);
 
     const absoluteProjectPath = path.resolve(options.projectDir);
@@ -53,41 +78,46 @@ export const compile = async (options: GenerateHandlerOptions) => {
         targetName: options.target,
     });
     const credentials = await warehouseCredentialsFromDbtTarget(target);
-    const warehouseClient = warehouseClientFromCredentials(credentials);
+    const warehouseClient = warehouseClientFromCredentials({
+        ...credentials,
+        startOfWeek: isWeekDay(options.startOfWeek)
+            ? options.startOfWeek
+            : undefined,
+    });
     const manifest = await loadManifest({ targetDir: context.targetDir });
     const models = getModelsFromManifest(manifest);
 
     const adapterType = manifest.metadata.adapter_type;
 
-    const [validModels, failedExplores] = validateDbtModel(adapterType, models);
+    const { valid: validModels, invalid: failedExplores } = validateDbtModel(
+        adapterType,
+        models,
+    );
+
     if (failedExplores.length > 0) {
         const errors = failedExplores.map((failedExplore) =>
-            failedExplore.errors.map((error) => `- ${error.message}\n`),
+            failedExplore.errors.map(
+                (error) => `- ${failedExplore.name}: ${error.message}\n`,
+            ),
         );
         console.error(
             styles.warning(`Found ${
                 failedExplores.length
-            } errors when validating dbt model:
+            } errors when validating dbt models:
 ${errors.join('')}`),
-        );
-    } else {
-        GlobalState.debug(
-            `> Validated dbt models: ${validModels
-                .map((m) => m.name)
-                .join(', ')}`,
         );
     }
 
-    GlobalState.debug(
-        `> Models from DBT manifest: ${models.map((m) => m.name).join(', ')}`,
-    );
-
     // Ideally we'd skip this potentially expensive step
     const catalog = await warehouseClient.getCatalog(
-        getSchemaStructureFromDbtModels(models),
+        getSchemaStructureFromDbtModels(validModels),
     );
 
-    const typedModels = attachTypesToModels(models, catalog, false);
+    const validModelsWithTypes = attachTypesToModels(
+        validModels,
+        catalog,
+        false,
+    );
 
     if (!isSupportedDbtAdapter(manifest.metadata)) {
         await LightdashAnalytics.track({
@@ -105,14 +135,16 @@ ${errors.join('')}`),
         `> Converting explores with adapter: ${manifest.metadata.adapter_type}`,
     );
 
-    const explores = await convertExplores(
-        typedModels,
+    const validExplores = await convertExplores(
+        validModelsWithTypes,
         false,
         manifest.metadata.adapter_type,
         Object.values(manifest.metrics),
-        isWeekDay(options.startOfWeek) ? options.startOfWeek : undefined,
+        warehouseClient,
     );
     console.error('');
+
+    const explores = [...validExplores, ...failedExplores];
 
     explores.forEach((e) => {
         const status = isExploreError(e)
@@ -143,10 +175,18 @@ ${errors.join('')}`),
 export const compileHandler = async (options: GenerateHandlerOptions) => {
     GlobalState.setVerbose(options.verbose);
     const explores = await compile(options);
-    const errors = explores.filter((e) => isExploreError(e)).length;
+    const errorsCount = explores.filter((e) => isExploreError(e)).length;
     console.error('');
-    if (errors > 0)
-        console.error(styles.warning(`Compiled project with ${errors} errors`));
-    else console.error(styles.success('Successfully compiled project'));
-    console.error('');
+    if (errorsCount > 0) {
+        console.error(
+            styles.error(
+                `Failed to compile project. Found ${errorsCount} error${
+                    errorsCount > 1 ? 's' : ''
+                }`,
+            ),
+        );
+        process.exit(1);
+    } else {
+        console.error(styles.success('Successfully compiled project'));
+    }
 };

@@ -10,6 +10,8 @@ import bigquery from '@google-cloud/bigquery/build/src/types';
 import {
     CreateBigqueryCredentials,
     DimensionType,
+    Metric,
+    MetricType,
     WarehouseConnectionError,
     WarehouseQueryError,
 } from '@lightdash/common';
@@ -18,6 +20,7 @@ import {
     WarehouseClient,
     WarehouseTableSchema,
 } from '../types';
+import { getDefaultMetricSql } from '../utils/sql';
 
 export enum BigqueryFieldType {
     STRING = 'STRING',
@@ -243,5 +246,30 @@ export class BigqueryWarehouseClient implements WarehouseClient {
 
             return acc;
         }, {});
+    }
+
+    getFieldQuoteChar() {
+        return '`';
+    }
+
+    getStringQuoteChar() {
+        return "'";
+    }
+
+    getEscapeStringQuoteChar() {
+        return '\\';
+    }
+
+    getMetricSql(sql: string, metric: Metric) {
+        switch (metric.type) {
+            case MetricType.PERCENTILE:
+                return `APPROX_QUANTILES(${sql}, 100)[OFFSET(${
+                    metric.percentile ?? 50
+                })]`;
+            case MetricType.MEDIAN:
+                return `APPROX_QUANTILES(${sql}, 100)[OFFSET(50)]`;
+            default:
+                return getDefaultMetricSql(sql, metric.type);
+        }
     }
 }

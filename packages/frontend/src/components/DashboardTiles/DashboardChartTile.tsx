@@ -1,11 +1,4 @@
-import {
-    Colors,
-    Icon,
-    Menu,
-    NonIdealState,
-    Portal,
-    Tag,
-} from '@blueprintjs/core';
+import { Icon, Menu, NonIdealState, Portal, Tag } from '@blueprintjs/core';
 import {
     MenuItem2,
     Popover2,
@@ -32,10 +25,12 @@ import {
     SavedChart,
 } from '@lightdash/common';
 import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import CopyToClipboard from 'react-copy-to-clipboard';
+import { useHistory, useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import useDashboardFiltersForExplore from '../../hooks/dashboard/useDashboardFiltersForExplore';
 import { EChartSeries } from '../../hooks/echarts/useEcharts';
+import useToaster from '../../hooks/toaster/useToaster';
 import { useExplore } from '../../hooks/useExplore';
 import { getExplorerUrlFromCreateSavedChartVersion } from '../../hooks/useExplorerRoute';
 import { useSavedChartResults } from '../../hooks/useQueryResults';
@@ -44,7 +39,8 @@ import { useApp } from '../../providers/AppProvider';
 import { useDashboardContext } from '../../providers/DashboardProvider';
 import { useTracking } from '../../providers/TrackingProvider';
 import { EventName } from '../../types/Events';
-import { getFilterRuleLabel } from '../common/Filters/configs';
+import { getConditionalRuleLabel } from '../common/Filters/configs';
+import LinkMenuItem from '../common/LinkMenuItem';
 import { TableColumn } from '../common/Table/types';
 import CSVExporter from '../CSVExporter';
 import { FilterValues } from '../DashboardFilter/ActiveFilters/ActiveFilters.styles';
@@ -152,6 +148,8 @@ type Props = Pick<
 > & { tile: IDashboardChartTile };
 
 const DashboardChartTile: FC<Props> = (props) => {
+    const history = useHistory();
+    const { showToastSuccess } = useToaster();
     const { track } = useTracking();
     const {
         tile: {
@@ -166,6 +164,7 @@ const DashboardChartTile: FC<Props> = (props) => {
     }>();
     const { data: savedQuery, isLoading } = useSavedQuery({
         id: savedChartUuid || undefined,
+        useQueryOptions: { refetchOnMount: false },
     });
     const { data: explore } = useExplore(savedQuery?.tableName);
     const { addDimensionDashboardFilter } = useDashboardContext();
@@ -219,6 +218,7 @@ const DashboardChartTile: FC<Props> = (props) => {
                 },
                 operator: FilterOperator.EQUALS,
                 values: [e.data[fieldId(dimension)]],
+                label: undefined,
             }));
             const serie = series[e.seriesIndex];
             const fields = getFields(explore);
@@ -244,6 +244,7 @@ const DashboardChartTile: FC<Props> = (props) => {
                               },
                               operator: FilterOperator.EQUALS,
                               values: [pivotValue],
+                              label: undefined,
                           },
                       ]
                     : [];
@@ -327,7 +328,10 @@ const DashboardChartTile: FC<Props> = (props) => {
                 (f) => fieldId(f) === filterRule.target.fieldId,
             );
             if (field && isFilterableField(field)) {
-                const filterRuleLabels = getFilterRuleLabel(filterRule, field);
+                const filterRuleLabels = getConditionalRuleLabel(
+                    filterRule,
+                    field,
+                );
                 return (
                     <div key={field.name}>
                         <Tag minimal style={{ color: 'white' }}>
@@ -390,6 +394,8 @@ const DashboardChartTile: FC<Props> = (props) => {
                     )
                 }
                 title={savedQueryWithDashboardFilters?.name || ''}
+                clickableTitle={true}
+                titleHref={`/projects/${projectUuid}/saved/${savedChartUuid}/`}
                 description={savedQueryWithDashboardFilters?.description}
                 isLoading={isLoading}
                 extraMenuItems={
@@ -399,17 +405,21 @@ const DashboardChartTile: FC<Props> = (props) => {
                                 'manage',
                                 'SavedChart',
                             ) && (
-                                <MenuItem2
+                                <LinkMenuItem
                                     icon="document-open"
                                     text="Edit chart"
                                     href={`/projects/${projectUuid}/saved/${savedChartUuid}/edit?fromDashboard=${dashboardUuid}`}
                                 />
                             )}
-                            <MenuItem2
-                                icon="series-search"
-                                text="Explore from here"
-                                href={exploreFromHereUrl}
-                            />
+
+                            {exploreFromHereUrl && (
+                                <LinkMenuItem
+                                    icon="series-search"
+                                    text="Explore from here"
+                                    href={exploreFromHereUrl}
+                                />
+                            )}
+
                             {savedQueryWithDashboardFilters &&
                                 savedQueryWithDashboardFilters.chartConfig
                                     .type === ChartType.TABLE && (
@@ -429,6 +439,25 @@ const DashboardChartTile: FC<Props> = (props) => {
                             content={
                                 <div onContextMenu={cancelContextMenu}>
                                     <Menu>
+                                        {viewUnderlyingDataOptions?.value && (
+                                            <CopyToClipboard
+                                                text={
+                                                    viewUnderlyingDataOptions
+                                                        .value.formatted
+                                                }
+                                                onCopy={() => {
+                                                    showToastSuccess({
+                                                        title: 'Copied to clipboard!',
+                                                    });
+                                                }}
+                                            >
+                                                <MenuItem2
+                                                    text="Copy value"
+                                                    icon="duplicate"
+                                                />
+                                            </CopyToClipboard>
+                                        )}
+
                                         <MenuItem2
                                             text={`View underlying data`}
                                             icon={'layers'}

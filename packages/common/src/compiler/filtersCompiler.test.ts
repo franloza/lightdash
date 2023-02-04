@@ -1,7 +1,20 @@
 import moment from 'moment/moment';
-import { renderDateFilterSql, renderStringFilterSql } from './filtersCompiler';
+import { FilterOperator, UnitOfTime } from '../types/filter';
+import {
+    renderDateFilterSql,
+    renderNumberFilterSql,
+    renderStringFilterSql,
+} from './filtersCompiler';
 import {
     DimensionSqlMock,
+    ExpectedInTheCurrentFilterSQL,
+    ExpectedInTheNextCompleteFilterSQL,
+    ExpectedInTheNextFilterSQL,
+    ExpectedNumberFilterSQL,
+    InBetweenPastTwoYearsFilter,
+    InBetweenPastTwoYearsFilterSQL,
+    InBetweenPastTwoYearsTimestampFilterSQL,
+    InTheCurrentFilterBase,
     InTheLast1CompletedDayFilter,
     InTheLast1CompletedDayFilterSQL,
     InTheLast1CompletedHourFilter,
@@ -26,6 +39,9 @@ import {
     InTheLast1WeekFilterSQL,
     InTheLast1YearFilter,
     InTheLast1YearFilterSQL,
+    InTheNextFilterBase,
+    NumberDimensionMock,
+    NumberFilterBase,
     stringFilterDimension,
     stringFilterRuleMocks,
 } from './filtersCompiler.mock';
@@ -36,11 +52,79 @@ const formatTimestamp = (date: Date): string =>
 describe('Filter SQL', () => {
     beforeAll(() => {
         jest.useFakeTimers();
-        jest.setSystemTime(new Date('04 Apr 2020 00:12:00 GMT').getTime());
+        jest.setSystemTime(new Date('04 Apr 2020 06:12:30 GMT').getTime());
     });
     afterAll(() => {
         jest.useFakeTimers();
     });
+    test.each(Object.values(FilterOperator))(
+        'should return number filter sql for operator %s',
+        (operator) => {
+            if (ExpectedNumberFilterSQL[operator]) {
+                expect(
+                    renderNumberFilterSql(NumberDimensionMock, {
+                        ...NumberFilterBase,
+                        operator,
+                    }),
+                ).toStrictEqual(ExpectedNumberFilterSQL[operator]);
+            } else {
+                expect(() => {
+                    renderNumberFilterSql(NumberDimensionMock, {
+                        ...NumberFilterBase,
+                        operator,
+                    });
+                }).toThrow();
+            }
+        },
+    );
+    test.each(Object.values(UnitOfTime))(
+        'should return in the current %s filter sql',
+        (unitOfTime) => {
+            jest.setSystemTime(new Date('04 Apr 2020 06:12:30 GMT').getTime());
+            expect(
+                renderDateFilterSql(
+                    DimensionSqlMock,
+                    {
+                        ...InTheCurrentFilterBase,
+                        settings: { unitOfTime },
+                    },
+                    formatTimestamp,
+                ),
+            ).toStrictEqual(ExpectedInTheCurrentFilterSQL[unitOfTime]);
+        },
+    );
+    test.each(Object.values(UnitOfTime))(
+        'should return in the next %s filter sql',
+        (unitOfTime) => {
+            jest.setSystemTime(new Date('04 Apr 2020 06:12:30 GMT').getTime());
+            expect(
+                renderDateFilterSql(
+                    DimensionSqlMock,
+                    {
+                        ...InTheNextFilterBase,
+                        settings: { unitOfTime },
+                    },
+                    formatTimestamp,
+                ),
+            ).toStrictEqual(ExpectedInTheNextFilterSQL[unitOfTime]);
+        },
+    );
+    test.each(Object.values(UnitOfTime))(
+        'should return in the next complete %s filter sql',
+        (unitOfTime) => {
+            jest.setSystemTime(new Date('04 Apr 2020 06:12:30 GMT').getTime());
+            expect(
+                renderDateFilterSql(
+                    DimensionSqlMock,
+                    {
+                        ...InTheNextFilterBase,
+                        settings: { unitOfTime, completed: true },
+                    },
+                    formatTimestamp,
+                ),
+            ).toStrictEqual(ExpectedInTheNextCompleteFilterSQL[unitOfTime]);
+        },
+    );
     test('should return in the last date filter sql', () => {
         expect(
             renderDateFilterSql(DimensionSqlMock, InTheLast1DayFilter),
@@ -112,11 +196,29 @@ describe('Filter SQL', () => {
         ).toStrictEqual(InTheLast1CompletedMinuteFilterSQL);
     });
 
+    test('should return in between date filter sql', () => {
+        expect(
+            renderDateFilterSql(DimensionSqlMock, InBetweenPastTwoYearsFilter),
+        ).toStrictEqual(InBetweenPastTwoYearsFilterSQL);
+    });
+
+    test('should return in between date filter sql for timestamps', () => {
+        expect(
+            renderDateFilterSql(
+                DimensionSqlMock,
+                InBetweenPastTwoYearsFilter,
+                formatTimestamp,
+            ),
+        ).toStrictEqual(InBetweenPastTwoYearsTimestampFilterSQL);
+    });
+
     test('should return single value in includes filter sql', () => {
         expect(
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.includeFilterWithSingleVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.includeFilterWithSingleValSQL);
     });
@@ -126,6 +228,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.includeFilterWithMultiVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.includeFilterWithMultiValSQL);
     });
@@ -135,6 +239,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.includeFilterWithNoVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.includeFilterWithNoValSQL);
     });
@@ -144,6 +250,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.notIncludeFilterWithSingleVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.notIncludeFilterWithSingleValSQL);
     });
@@ -153,6 +261,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.notIncludeFilterWithMultiVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.notIncludeFilterWithMultiValSQL);
     });
@@ -162,6 +272,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.notIncludeFilterWithNoVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.notIncludeFilterWithNoValSQL);
     });
@@ -171,6 +283,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.startsWithFilterWithSingleVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.startsWithFilterWithSingleValSQL);
     });
@@ -180,6 +294,8 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.startsWithFilterWithMultiVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.startsWithFilterWithMultiValSQL);
     });
@@ -189,7 +305,31 @@ describe('Filter SQL', () => {
             renderStringFilterSql(
                 stringFilterDimension,
                 stringFilterRuleMocks.startsWithFilterWithNoVal,
+                "'",
+                "'",
             ),
         ).toBe(stringFilterRuleMocks.startsWithFilterWithNoValSQL);
+    });
+
+    test('should return escaped query for unescaped single filter value', () => {
+        expect(
+            renderStringFilterSql(
+                stringFilterDimension,
+                stringFilterRuleMocks.equalsFilterWithSingleUnescapedValue,
+                "'",
+                "'",
+            ),
+        ).toBe(stringFilterRuleMocks.equalsFilterWithSingleUnescapedValueSQL);
+    });
+
+    test('should return escaped query for unescaped multi filter values', () => {
+        expect(
+            renderStringFilterSql(
+                stringFilterDimension,
+                stringFilterRuleMocks.equalsFilterWithMultiUnescapedValue,
+                "'",
+                "'",
+            ),
+        ).toBe(stringFilterRuleMocks.equalsFilterWithMultiUnescapedValueSQL);
     });
 });

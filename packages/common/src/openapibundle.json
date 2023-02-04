@@ -1991,8 +1991,14 @@
                     "spaceName": {
                         "type": "string"
                     },
+                    "views": {
+                        "type": "number"
+                    },
                     "updatedByUser": {
                         "$ref": "#/components/schemas/UpdatedByUser"
+                    },
+                    "pinnedListUuid": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -2150,6 +2156,12 @@
                     },
                     "spaceName": {
                         "type": "string"
+                    },
+                    "pinnedListUuid": {
+                        "type": "string"
+                    },
+                    "views": {
+                        "type": "number"
                     }
                 },
                 "required": [

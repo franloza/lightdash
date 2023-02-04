@@ -22,6 +22,10 @@ describe('Dashboard List', () => {
         cy.findByRole('menuitem', { name: 'All dashboards' }).click();
         cy.findByRole('button', { name: 'Create dashboard' }).click();
 
+        cy.findByLabelText('Name your dashboard').type('Untitled dashboard');
+        cy.findByLabelText('Dashboard description').type('Description');
+        cy.findByText('Create').click();
+
         cy.url().should(
             'match',
             /.*\/projects\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/dashboards\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
@@ -36,7 +40,7 @@ describe('Dashboard List', () => {
         // open actions menu
         cy.contains('tr', 'Untitled dashboard').find('button').click();
         // click on rename
-        cy.findByRole('button', { name: 'Rename' }).click();
+        cy.findByRole('menuitem', { name: 'Rename' }).click();
         cy.findByLabelText('Enter a memorable name for your dashboard *')
             .clear()
             .type('e2e dashboard');
@@ -54,9 +58,9 @@ describe('Dashboard List', () => {
         // open actions menu
         cy.contains('tr', 'e2e dashboard').find('button').click();
         // click on delete
-        cy.findByRole('button', { name: 'Delete' }).click();
+        cy.findByRole('menuitem', { name: 'Delete' }).click();
         // click on delete in the popup
-        cy.findByText('Delete').click();
+        cy.findByRole('button', { name: 'Delete' }).click();
         cy.findByText('Jaffle dashboard'); // still exists
     });
 });

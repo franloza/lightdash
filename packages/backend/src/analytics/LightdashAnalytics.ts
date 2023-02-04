@@ -89,6 +89,16 @@ type CreateUserEvent = BaseTrack & {
     };
 };
 
+type DeleteUserEvent = BaseTrack & {
+    event: 'user.deleted';
+    properties: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        organizationId: string;
+    };
+};
+
 type UpdateUserEvent = BaseTrack & {
     event: 'user.updated';
     properties: LightdashUser & { jobTitle?: string };
@@ -108,7 +118,10 @@ type QueryExecutionEvent = BaseTrack & {
 };
 
 type TrackOrganizationEvent = BaseTrack & {
-    event: 'organization.created' | 'organization.updated';
+    event:
+        | 'organization.created'
+        | 'organization.updated'
+        | 'organization.deleted';
     properties: {
         type: string;
         organizationId: string;
@@ -149,6 +162,12 @@ export type CreateSavedChartOrVersionEvent = BaseTrack & {
             yAxisCount: number;
             seriesCount: number;
             seriesTypes: CartesianSeriesType[];
+            referenceLinesCount: number;
+            margins: string;
+            showLegend: boolean;
+        };
+        table?: {
+            conditionalFormattingRulesCount: number;
         };
         duplicated?: boolean;
     };
@@ -403,10 +422,41 @@ type ShareSlack = BaseTrack & {
     };
 };
 
+type SavedChartView = BaseTrack & {
+    event: 'saved_chart.view';
+    userId: string;
+    properties: {
+        savedChartId: string;
+        projectId: string;
+        organizationId: string;
+    };
+};
+
+type DashboardView = BaseTrack & {
+    event: 'dashboard.view';
+    userId: string;
+    properties: {
+        dashboardId: string;
+        projectId: string;
+        organizationId: string;
+    };
+};
+
+type AnalyticsDashboardView = BaseTrack & {
+    event: 'usage_analytics.dashboard_viewed';
+    userId: string;
+    properties: {
+        projectId: string;
+        organizationId: string;
+        dashboardType: 'user_activity';
+    };
+};
+
 type Track =
     | TrackSimpleEvent
     | CreateUserEvent
     | UpdateUserEvent
+    | DeleteUserEvent
     | QueryExecutionEvent
     | TrackSavedChart
     | CreateSavedChartOrVersionEvent
@@ -436,7 +486,10 @@ type Track =
     | FieldValueSearch
     | PermissionsUpdated
     | ShareUrl
-    | ShareSlack;
+    | ShareSlack
+    | SavedChartView
+    | DashboardView
+    | AnalyticsDashboardView;
 
 export class LightdashAnalytics extends Analytics {
     static lightdashContext = {

@@ -1,10 +1,4 @@
-import { Colors, FocusStyleManager, HotkeysProvider } from '@blueprintjs/core';
-import '@blueprintjs/core/lib/css/blueprint.css';
-import '@blueprintjs/datetime/lib/css/blueprint-datetime.css'; // We need to import the datetime css until this bug is fixed: https://github.com/palantir/blueprint/issues/5388
-import '@blueprintjs/datetime2/lib/css/blueprint-datetime2.css';
-import '@blueprintjs/popover2/lib/css/blueprint-popover2.css';
-import '@blueprintjs/select/lib/css/blueprint-select.css';
-import '@blueprintjs/table/lib/css/table.css';
+import { Colors } from '@blueprintjs/core';
 import { Helmet } from 'react-helmet';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ReactQueryDevtools } from 'react-query/devtools';
@@ -42,8 +36,11 @@ import Settings from './pages/Settings';
 import ShareRedirect from './pages/ShareRedirect';
 import Signup from './pages/Signup';
 import Space from './pages/Space';
+import Spaces from './pages/Spaces';
 import SqlRunner from './pages/SqlRunner';
+import UserActivity from './pages/UserActivity';
 import { AppProvider } from './providers/AppProvider';
+import { BlueprintProvider } from './providers/BlueprintProvider';
 import { DashboardProvider } from './providers/DashboardProvider';
 import { TrackingProvider, TrackPage } from './providers/TrackingProvider';
 import { PageName } from './types/Events';
@@ -68,8 +65,6 @@ const isMobile =
         navigator.userAgent,
     ) || window.innerWidth < 768;
 
-FocusStyleManager.onlyShowFocusOnTabs();
-
 const App = () => (
     <>
         <Helmet>
@@ -77,7 +72,7 @@ const App = () => (
         </Helmet>
         <AppStyle />
         <QueryClientProvider client={queryClient}>
-            <HotkeysProvider>
+            <BlueprintProvider>
                 <AppProvider>
                     <TrackingProvider>
                         {isMobile ? (
@@ -263,10 +258,20 @@ const App = () => (
                                                                     <NavBar />
                                                                     <TrackPage
                                                                         name={
-                                                                            PageName.SPACES
+                                                                            PageName.SPACE
                                                                         }
                                                                     >
                                                                         <Space />
+                                                                    </TrackPage>
+                                                                </Route>
+                                                                <Route path="/projects/:projectUuid/spaces">
+                                                                    <NavBar />
+                                                                    <TrackPage
+                                                                        name={
+                                                                            PageName.SPACES
+                                                                        }
+                                                                    >
+                                                                        <Spaces />
                                                                     </TrackPage>
                                                                 </Route>
                                                                 <Route
@@ -280,6 +285,19 @@ const App = () => (
                                                                         }
                                                                     >
                                                                         <Home />
+                                                                    </TrackPage>
+                                                                </Route>
+                                                                <Route
+                                                                    path="/projects/:projectUuid/user-activity"
+                                                                    exact
+                                                                >
+                                                                    <NavBar />
+                                                                    <TrackPage
+                                                                        name={
+                                                                            PageName.USER_ACTIVITY
+                                                                        }
+                                                                    >
+                                                                        <UserActivity />
                                                                     </TrackPage>
                                                                 </Route>
                                                                 <Redirect to="/projects" />
@@ -303,7 +321,7 @@ const App = () => (
                         )}
                     </TrackingProvider>
                 </AppProvider>
-            </HotkeysProvider>
+            </BlueprintProvider>
             <ReactQueryDevtools initialIsOpen={false} />
         </QueryClientProvider>
     </>

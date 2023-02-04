@@ -12,6 +12,8 @@ import {
 } from '@lightdash/common';
 import { analytics } from '../../analytics/client';
 import { CreateSavedChartOrVersionEvent } from '../../analytics/LightdashAnalytics';
+import { AnalyticsModel } from '../../models/AnalyticsModel';
+import { PinnedListModel } from '../../models/PinnedListModel';
 import { ProjectModel } from '../../models/ProjectModel/ProjectModel';
 import { SavedChartModel } from '../../models/SavedChartModel';
 import { SpaceModel } from '../../models/SpaceModel';
@@ -21,6 +23,8 @@ type Dependencies = {
     projectModel: ProjectModel;
     savedChartModel: SavedChartModel;
     spaceModel: SpaceModel;
+    analyticsModel: AnalyticsModel;
+    pinnedListModel: PinnedListModel;
 };
 
 export class SavedChartService {
@@ -30,10 +34,16 @@ export class SavedChartService {
 
     private readonly spaceModel: SpaceModel;
 
+    private readonly analyticsModel: AnalyticsModel;
+
+    private readonly pinnedListModel: PinnedListModel;
+
     constructor(dependencies: Dependencies) {
         this.projectModel = dependencies.projectModel;
         this.savedChartModel = dependencies.savedChartModel;
         this.spaceModel = dependencies.spaceModel;
+        this.analyticsModel = dependencies.analyticsModel;
+        this.pinnedListModel = dependencies.pinnedListModel;
     }
 
     async hasChartSpaceAccess(
@@ -51,6 +61,15 @@ export class SavedChartService {
     static getCreateEventProperties(
         savedChart: SavedChart,
     ): CreateSavedChartOrVersionEvent['properties'] {
+        const echartsConfig =
+            savedChart.chartConfig.type === ChartType.CARTESIAN
+                ? savedChart.chartConfig.config.eChartsConfig
+                : undefined;
+        const tableConfig =
+            savedChart.chartConfig.type === ChartType.TABLE
+                ? savedChart.chartConfig.config
+                : undefined;
+
         return {
             projectId: savedChart.projectUuid,
             savedQueryId: savedChart.uuid,
@@ -62,6 +81,13 @@ export class SavedChartService {
                 savedChart.metricQuery.tableCalculations.length,
             pivotCount: (savedChart.pivotConfig?.columns || []).length,
             chartType: savedChart.chartConfig.type,
+            table:
+                savedChart.chartConfig.type === ChartType.TABLE
+                    ? {
+                          conditionalFormattingRulesCount:
+                              tableConfig?.conditionalFormattings?.length || 0,
+                      }
+                    : undefined,
             cartesian:
                 savedChart.chartConfig.type === ChartType.CARTESIAN
                     ? {
@@ -81,6 +107,15 @@ export class SavedChartService {
                               savedChart.chartConfig.config.eChartsConfig
                                   .series || []
                           ).length,
+                          referenceLinesCount:
+                              echartsConfig?.series?.filter(
+                                  (serie) => serie.markLine?.data !== undefined,
+                              ).length || 0,
+                          margins:
+                              echartsConfig?.grid?.top === undefined
+                                  ? 'default'
+                                  : 'custom',
+                          showLegend: echartsConfig?.legend?.show !== false,
                       }
                     : undefined,
         };
@@ -107,6 +142,7 @@ export class SavedChartService {
             data,
             user,
         );
+
         analytics.track({
             event: 'saved_chart_version.created',
             userId: user.userUuid,
@@ -144,6 +180,36 @@ export class SavedChartService {
             },
         });
         return savedChart;
+    }
+
+    async togglePinning(
+        user: SessionUser,
+        savedChartUuid: string,
+    ): Promise<SavedChart> {
+        const { organizationUuid, projectUuid, pinnedListUuid } =
+            await this.savedChartModel.get(savedChartUuid);
+
+        if (
+            user.ability.cannot(
+                'update',
+                subject('SavedChart', { organizationUuid, projectUuid }),
+            )
+        ) {
+            throw new ForbiddenError();
+        }
+        if (pinnedListUuid) {
+            await this.pinnedListModel.deleteItem({
+                pinnedListUuid,
+                savedChartUuid,
+            });
+        } else {
+            await this.pinnedListModel.addItem({
+                projectUuid,
+                savedChartUuid,
+            });
+        }
+
+        return this.get(savedChartUuid, user);
     }
 
     async updateMultiple(
@@ -215,7 +281,27 @@ export class SavedChartService {
             );
         }
 
-        return savedChart;
+        await this.analyticsModel.addChartViewEvent(
+            savedChartUuid,
+            user.userUuid,
+        );
+
+        analytics.track({
+            event: 'saved_chart.view',
+            userId: user.userUuid,
+            properties: {
+                savedChartId: savedChart.uuid,
+                organizationId: savedChart.organizationUuid,
+                projectId: savedChart.projectUuid,
+            },
+        });
+
+        const views = await this.analyticsModel.countChartViews(savedChartUuid);
+
+        return {
+            ...savedChart,
+            views,
+        };
     }
 
     async create(

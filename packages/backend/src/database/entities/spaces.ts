@@ -1,6 +1,14 @@
-import { NotFoundError, Space } from '@lightdash/common';
+import {
+    ChartConfig,
+    ChartType,
+    getChartType,
+    NotFoundError,
+    Space,
+} from '@lightdash/common';
 import { Knex } from 'knex';
 import database from '../database';
+import { PinnedChartTableName, PinnedListTableName } from './pinnedList';
+import { SavedChartsTableName } from './savedCharts';
 
 export type DbSpace = {
     space_id: number;
@@ -80,6 +88,16 @@ export const getSpaceWithQueries = async (
             'saved_queries_versions.updated_by_user_uuid',
             'users.user_uuid',
         )
+        .leftJoin(
+            PinnedChartTableName,
+            `${PinnedChartTableName}.saved_chart_uuid`,
+            `${SavedChartsTableName}.saved_query_uuid`,
+        )
+        .leftJoin(
+            PinnedListTableName,
+            `${PinnedListTableName}.pinned_list_uuid`,
+            `${PinnedChartTableName}.pinned_list_uuid`,
+        )
         .select<
             {
                 saved_query_uuid: string;
@@ -89,15 +107,26 @@ export const getSpaceWithQueries = async (
                 user_uuid: string;
                 first_name: string;
                 last_name: string;
+                pinned_list_uuid: string | undefined;
+                chart_config: ChartConfig['config'];
+                chart_type: ChartType;
+                views: string;
             }[]
         >([
             `saved_queries.saved_query_uuid`,
             `saved_queries.name`,
             `saved_queries.description`,
             `saved_queries_versions.created_at`,
+            `saved_queries_versions.chart_config`,
+            `saved_queries_versions.chart_type`,
             `users.user_uuid`,
             `users.first_name`,
             `users.last_name`,
+            `${PinnedListTableName}.pinned_list_uuid`,
+
+            database.raw(
+                `(SELECT COUNT('analytics_chart_views.chart_uuid') FROM analytics_chart_views WHERE saved_queries.saved_query_uuid = analytics_chart_views.chart_uuid) as views`,
+            ),
         ])
         .orderBy([
             {
@@ -110,6 +139,7 @@ export const getSpaceWithQueries = async (
         ])
         .distinctOn(`saved_queries_versions.saved_query_id`)
         .where('space_id', space.space_id);
+
     return {
         organizationUuid: space.organization_uuid,
         uuid: space.space_uuid,
@@ -126,6 +156,12 @@ export const getSpaceWithQueries = async (
                 lastName: savedQuery.last_name,
             },
             spaceUuid: space.space_uuid,
+            pinnedListUuid: savedQuery.pinned_list_uuid,
+            chartType: getChartType(
+                savedQuery.chart_type,
+                savedQuery.chart_config,
+            ),
+            views: parseInt(savedQuery.views, 10) || 0,
         })),
         projectUuid,
         dashboards: [],

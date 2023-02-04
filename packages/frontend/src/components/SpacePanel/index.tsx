@@ -12,7 +12,15 @@ import {
     PageHeader,
 } from '../common/Page/Page.styles';
 import ResourceList from '../common/ResourceList';
+import {
+    ResourceEmptyStateHeader,
+    ResourceEmptyStateIcon,
+} from '../common/ResourceList/ResourceList.styles';
 import { SortDirection } from '../common/ResourceList/ResourceTable';
+import {
+    ResourceListType,
+    wrapResourceList,
+} from '../common/ResourceList/ResourceTypeUtils';
 import ShareSpaceModal from '../common/ShareSpaceModal';
 import SpaceActionModal, { ActionType } from '../common/SpaceActionModal';
 import AddResourceToSpaceMenu from '../Explorer/SpaceBrowser/AddResourceToSpaceMenu';
@@ -64,13 +72,12 @@ export const SpacePanel: React.FC<Props> = ({ space }) => {
                     <Breadcrumbs2
                         items={[
                             {
-                                href: '/home',
-                                text: 'Home',
+                                text: 'All spaces',
                                 className: 'home-breadcrumb',
-                                onClick: (e) => {
-                                    e.preventDefault();
-                                    history.push('/home');
-                                },
+                                onClick: () =>
+                                    history.push(
+                                        `/projects/${projectUuid}/spaces`,
+                                    ),
                             },
                             { text: space.name },
                         ]}
@@ -133,17 +140,13 @@ export const SpacePanel: React.FC<Props> = ({ space }) => {
             </PageHeader>
 
             <ResourceList
-                headerTitle="Dashboards"
-                resourceIcon="control"
-                resourceType="dashboard"
-                resourceList={savedDashboards}
-                defaultSort={{
-                    updatedAt: SortDirection.DESC,
-                }}
+                items={wrapResourceList(
+                    savedDashboards,
+                    ResourceListType.DASHBOARD,
+                )}
+                defaultSort={{ updatedAt: SortDirection.DESC }}
                 defaultColumnVisibility={{ space: false }}
-                getURL={({ uuid }) =>
-                    `/projects/${projectUuid}/dashboards/${uuid}/view`
-                }
+                headerTitle="Dashboards"
                 headerAction={
                     !isDemo &&
                     userCanManageDashboards && (
@@ -160,18 +163,22 @@ export const SpacePanel: React.FC<Props> = ({ space }) => {
                         </AddResourceToSpaceMenu>
                     )
                 }
+                renderEmptyState={() => (
+                    <>
+                        <ResourceEmptyStateIcon icon="control" size={40} />
+
+                        <ResourceEmptyStateHeader>
+                            No dashboards added yet
+                        </ResourceEmptyStateHeader>
+                    </>
+                )}
             />
 
             <ResourceList
                 headerTitle="Saved charts"
-                resourceList={savedCharts}
-                resourceIcon="chart"
-                resourceType="chart"
-                defaultSort={{
-                    updatedAt: SortDirection.DESC,
-                }}
+                items={wrapResourceList(savedCharts, ResourceListType.CHART)}
+                defaultSort={{ updatedAt: SortDirection.DESC }}
                 defaultColumnVisibility={{ space: false }}
-                getURL={({ uuid }) => `/projects/${projectUuid}/saved/${uuid}`}
                 headerAction={
                     !isDemo &&
                     userCanManageCharts && (
@@ -188,6 +195,15 @@ export const SpacePanel: React.FC<Props> = ({ space }) => {
                         </AddResourceToSpaceMenu>
                     )
                 }
+                renderEmptyState={() => (
+                    <>
+                        <ResourceEmptyStateIcon icon="chart" size={40} />
+
+                        <ResourceEmptyStateHeader>
+                            No charts added yet
+                        </ResourceEmptyStateHeader>
+                    </>
+                )}
             />
 
             {addToSpace && (

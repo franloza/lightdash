@@ -173,6 +173,8 @@ export const dashboardWithVersionEntry: GetDashboardQuery = {
     user_uuid: 'userUuid',
     first_name: 'firstName',
     last_name: 'lastName',
+    pinned_list_uuid: 'pinnedUuid',
+    views: '1',
 };
 
 export const dashboardTileEntry: DashboardTileTable['base'] = {
@@ -270,6 +272,8 @@ export const expectedDashboard: Dashboard = {
         lastName: 'lastName',
         userUuid: 'userUuid',
     },
+    pinnedListUuid: 'pinnedUuid',
+    views: 1,
 };
 
 export const expectedAllDashboards: DashboardBasicDetails[] = [
@@ -286,6 +290,8 @@ export const expectedAllDashboards: DashboardBasicDetails[] = [
             userUuid: 'userUuid',
         },
         spaceUuid: 'spaceUuid',
+        pinnedListUuid: 'pinnedUuid',
+        views: 1,
     },
 ];
 

@@ -12,6 +12,7 @@ import { userModel } from '../models/models';
 import { UserModel } from '../models/UserModel';
 import { healthService, userService } from '../services/services';
 import { sanitizeEmailParam, sanitizeStringParam } from '../utils';
+import { analyticsRouter } from './analyticsRouter';
 import { dashboardRouter } from './dashboardRouter';
 import { headlessBrowserRouter } from './headlessBrowser';
 import { inviteLinksRouter } from './inviteLinksRouter';
@@ -106,6 +107,23 @@ apiV1Router.get(
 );
 
 apiV1Router.get(
+    lightdashConfig.auth.oneLogin.loginPath,
+    storeOIDCRedirect,
+    passport.authenticate('oneLogin', {
+        scope: ['openid', 'profile', 'email'],
+    }),
+);
+
+apiV1Router.get(
+    lightdashConfig.auth.oneLogin.callbackPath,
+    passport.authenticate('oneLogin', {
+        failureRedirect: '/api/v1/oauth/failure',
+        successRedirect: '/api/v1/oauth/success',
+        failureFlash: true,
+    }),
+);
+
+apiV1Router.get(
     lightdashConfig.auth.google.loginPath,
     storeOIDCRedirect,
     passport.authenticate('google', {
@@ -151,3 +169,4 @@ apiV1Router.use('/password-reset', passwordResetLinksRouter);
 apiV1Router.use('/jobs', jobsRouter);
 apiV1Router.use('/slack', slackRouter);
 apiV1Router.use('/headless-browser', headlessBrowserRouter);
+apiV1Router.use('/analytics', analyticsRouter);

@@ -81,6 +81,7 @@ module.exports = {
                 'references/lightdashyaml',
                 'references/personal_tokens',
                 'references/ip_addresses',
+                'references/usage-analytics',
             ],
         },
         {
@@ -97,10 +98,11 @@ module.exports = {
             items: [
                 'guides/cli/how-to-install-the-lightdash-cli',
                 'guides/cli/cli-authentication',
+                'guides/cli/how-to-upgrade-cli',
                 'guides/cli/how-to-auto-generate-schema-files',
                 'guides/cli/how-to-use-lightdash-preview',
                 'guides/cli/how-to-use-lightdash-deploy',
-                'guides/cli/how-to-upgrade-cli',
+                'guides/cli/how-to-compile-your-lightdash-project',
             ],
         },
         {

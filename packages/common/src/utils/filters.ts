@@ -7,8 +7,10 @@ import {
     fieldId,
     FilterableDimension,
     FilterableField,
+    FilterableItem,
     isDimension,
     isFilterableDimension,
+    isTableCalculation,
     MetricType,
 } from '../types/field';
 import {
@@ -77,14 +79,21 @@ export const filterableDimensionsOnly = (
     dimensions: Dimension[],
 ): FilterableDimension[] => dimensions.filter(isFilterableDimension);
 
-export const getFilterTypeFromField = (field: FilterableField): FilterType => {
-    const fieldType = field.type;
-    switch (field.type) {
+export const getFilterTypeFromItem = (item: FilterableItem): FilterType => {
+    if (isTableCalculation(item)) {
+        return FilterType.NUMBER;
+    }
+
+    const { type } = item;
+
+    switch (type) {
         case DimensionType.STRING:
         case MetricType.STRING:
             return FilterType.STRING;
         case DimensionType.NUMBER:
         case MetricType.NUMBER:
+        case MetricType.PERCENTILE:
+        case MetricType.MEDIAN:
         case MetricType.AVERAGE:
         case MetricType.COUNT:
         case MetricType.COUNT_DISTINCT:
@@ -101,8 +110,8 @@ export const getFilterTypeFromField = (field: FilterableField): FilterType => {
             return FilterType.BOOLEAN;
         default: {
             return assertUnreachable(
-                field,
-                `No filter type found for field type: ${fieldType}`,
+                type,
+                `No filter type found for field type: ${type}`,
             );
         }
     }
@@ -113,7 +122,7 @@ export const getFilterRuleWithDefaultValue = <T extends FilterRule>(
     filterRule: T,
     values?: any[],
 ): T => {
-    const filterType = getFilterTypeFromField(field);
+    const filterType = getFilterTypeFromItem(field);
     const filterRuleDefaults: Partial<FilterRule> = {};
 
     if (
@@ -126,7 +135,11 @@ export const getFilterRuleWithDefaultValue = <T extends FilterRule>(
                 const value = values ? values[0] : undefined;
 
                 const isTimestamp = field.type === DimensionType.TIMESTAMP;
-                if (filterRule.operator === FilterOperator.IN_THE_PAST) {
+                if (
+                    filterRule.operator === FilterOperator.IN_THE_PAST ||
+                    filterRule.operator === FilterOperator.IN_THE_NEXT ||
+                    filterRule.operator === FilterOperator.IN_THE_CURRENT
+                ) {
                     const numberValue =
                         value === undefined || typeof value !== 'number'
                             ? 1

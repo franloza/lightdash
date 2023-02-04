@@ -26,7 +26,9 @@ import {
     Source,
 } from '../types/field';
 import { parseFilters } from '../types/filterGrammar';
+import { OrderFieldsByStrategy } from '../types/table';
 import { TimeFrames } from '../types/timeFrames';
+import { WarehouseClient } from '../types/warehouse';
 import assertUnreachable from '../utils/assertUnreachable';
 import {
     getDefaultTimeFrames,
@@ -34,7 +36,7 @@ import {
     validateTimeFrames,
     WeekDay,
 } from '../utils/timeFrames';
-import { compileExplore } from './exploreCompiler';
+import { ExploreCompiler } from './exploreCompiler';
 
 const convertTimezone = (
     timestampSql: string,
@@ -65,6 +67,8 @@ const convertTimezone = (
             return timestampSql;
         case SupportedDbtAdapter.DATABRICKS:
             return timestampSql;
+        case SupportedDbtAdapter.TRINO:
+            return timestampSql;
         case SupportedDbtAdapter.DUCKDB:
             return timestampSql;
         default:
@@ -76,6 +80,7 @@ const convertTimezone = (
 };
 
 const convertDimension = (
+    index: number,
     targetWarehouse: SupportedDbtAdapter,
     model: Pick<DbtModelNode, 'name' | 'relation_name'>,
     tableLabel: string,
@@ -119,6 +124,7 @@ const convertDimension = (
         type = timeFrameConfigs[timeInterval].getDimensionType(type);
     }
     return {
+        index,
         fieldType: FieldType.DIMENSION,
         name,
         label,
@@ -181,7 +187,7 @@ const convertDbtMetricToLightdashMetric = (
         sql = metric.expression;
 
         referencedMetrics.forEach((ref) => {
-            const re = new RegExp(ref, 'g');
+            const re = new RegExp(`\\b${ref}\\b`, 'g');
             // eslint-disable-next-line no-useless-escape
             sql = sql.replace(re, `\$\{${ref}\}`);
         });
@@ -232,6 +238,7 @@ const convertDbtMetricToLightdashMetric = (
         compact: metric.meta?.compact,
         format: metric.meta?.format,
         groupLabel: metric.meta?.group_label,
+        percentile: metric.meta?.percentile,
         showUnderlyingValues: metric.meta?.show_underlying_values,
         filters: parseFilters(metric.meta?.filters),
         ...(metric.meta?.urls ? { urls: metric.meta.urls } : {}),
@@ -253,8 +260,9 @@ export const convertTable = (
         Record<string, Dimension>,
         Record<string, Metric>,
     ] = Object.values(model.columns).reduce(
-        ([prevDimensions, prevMetrics], column) => {
+        ([prevDimensions, prevMetrics], column, index) => {
             const dimension = convertDimension(
+                index,
                 adapterType,
                 model,
                 tableLabel,
@@ -290,6 +298,7 @@ export const convertTable = (
                     (acc, interval) => ({
                         ...acc,
                         [`${column.name}_${interval}`]: convertDimension(
+                            index,
                             adapterType,
                             model,
                             tableLabel,
@@ -349,7 +358,18 @@ export const convertTable = (
             convertDbtMetricToLightdashMetric(metric, model.name, tableLabel),
         ]),
     );
-    const allMetrics = { ...convertedDbtMetrics, ...modelMetrics, ...metrics }; // Model-level metric names take priority
+
+    const allMetrics: Record<string, Metric> = Object.values({
+        ...convertedDbtMetrics,
+        ...modelMetrics,
+        ...metrics,
+    }).reduce(
+        (acc, metric, index) => ({
+            ...acc,
+            [metric.name]: { ...metric, index },
+        }),
+        {},
+    );
 
     const duplicatedNames = Object.keys(allMetrics).filter((metric) =>
         Object.keys(dimensions).includes(metric),
@@ -374,6 +394,13 @@ export const convertTable = (
         description: model.description || `${model.name} table`,
         dimensions,
         metrics: allMetrics,
+        orderFieldsBy:
+            meta.order_fields_by &&
+            Object.values(OrderFieldsByStrategy).includes(
+                meta.order_fields_by.toUpperCase() as OrderFieldsByStrategy,
+            )
+                ? (meta.order_fields_by.toUpperCase() as OrderFieldsByStrategy)
+                : OrderFieldsByStrategy.LABEL,
     };
 };
 
@@ -419,7 +446,7 @@ export const convertExplores = async (
     loadSources: boolean,
     adapterType: SupportedDbtAdapter,
     metrics: DbtMetric[],
-    startOfWeek?: WeekDay | null,
+    warehouseClient: WarehouseClient,
 ): Promise<(Explore | ExploreError)[]> => {
     const tableLineage = translateDbtModelsToTableLineage(models);
     const [tables, exploreErrors] = models.reduce(
@@ -435,7 +462,7 @@ export const convertExplores = async (
                     adapterType,
                     model,
                     tableMetrics,
-                    startOfWeek,
+                    warehouseClient.getStartOfWeek(),
                 );
 
                 // add sources
@@ -476,10 +503,11 @@ export const convertExplores = async (
     const validModels = models.filter(
         (model) => tableLookup[model.name] !== undefined,
     );
+    const exploreCompiler = new ExploreCompiler(warehouseClient);
     const explores: (Explore | ExploreError)[] = validModels.map((model) => {
         const meta = model.config?.meta || model.meta; // Config block takes priority, then meta block
         try {
-            return compileExplore({
+            return exploreCompiler.compileExplore({
                 name: model.name,
                 label: meta.label || friendlyName(model.name),
                 tags: model.tags || [],
@@ -487,6 +515,9 @@ export const convertExplores = async (
                 joinedTables: (meta?.joins || []).map((join) => ({
                     table: join.join,
                     sqlOn: join.sql_on,
+                    alias: join.alias,
+                    label: join.label,
+                    fields: join.fields,
                 })),
                 tables: tableLookup,
                 targetDatabase: adapterType,

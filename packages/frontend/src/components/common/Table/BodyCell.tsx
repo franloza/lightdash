@@ -1,5 +1,5 @@
-import { Position } from '@blueprintjs/core';
-import { Popover2 } from '@blueprintjs/popover2';
+import { mergeRefs, Position } from '@blueprintjs/core';
+import { Popover2, Tooltip2 } from '@blueprintjs/popover2';
 import { ResultRow } from '@lightdash/common';
 import { Cell } from '@tanstack/react-table';
 import { FC } from 'react';
@@ -16,8 +16,11 @@ interface CommonBodyCellProps {
     cellContextMenu?: FC<CellContextMenuProps>;
     className?: string;
     style?: CSSProperties;
+    backgroundColor?: string;
+    fontColor?: string;
     copying?: boolean;
     selected?: boolean;
+    tooltipContent?: string;
     onSelect: () => void;
     onDeselect: () => void;
     onKeyDown: React.KeyboardEventHandler<HTMLElement>;
@@ -28,12 +31,15 @@ const BodyCell: FC<CommonBodyCellProps> = ({
     cellContextMenu,
     children,
     className,
+    backgroundColor,
+    fontColor,
     copying = false,
     hasData,
     isNumericItem,
     rowIndex,
     selected = false,
     style,
+    tooltipContent,
     onSelect,
     onDeselect,
     onKeyDown,
@@ -68,29 +74,37 @@ const BodyCell: FC<CommonBodyCellProps> = ({
                     />
                 )
             }
-            renderTarget={({ ref }) => (
-                <Td
-                    className={className}
-                    style={{
-                        ...style,
-                        ...(selected
-                            ? { position: 'relative', zIndex: 21 }
-                            : {}),
-                    }}
-                    ref={ref}
-                    onKeyDown={onKeyDown}
-                    $rowIndex={rowIndex}
-                    $isSelected={selected}
-                    $isInteractive={hasContextMenu}
-                    $isCopying={copying}
-                    $hasData={hasContextMenu}
-                    $isNaN={!hasData || !isNumericItem}
-                    onClick={selected ? handleDeselect : handleSelect}
-                >
-                    <RichBodyCell cell={cell as Cell<ResultRow, ResultRow[0]>}>
-                        {children}
-                    </RichBodyCell>
-                </Td>
+            renderTarget={({ ref: ref2, ...popoverProps }) => (
+                <Tooltip2
+                    lazy
+                    position={Position.TOP}
+                    content={tooltipContent}
+                    renderTarget={({ ref: ref1, ...tooltipProps }) => (
+                        <Td
+                            ref={mergeRefs(ref1, ref2)}
+                            {...(tooltipProps as any)}
+                            {...popoverProps}
+                            className={className}
+                            style={style}
+                            $rowIndex={rowIndex}
+                            $isSelected={selected}
+                            $isInteractive={hasContextMenu}
+                            $isCopying={copying}
+                            $backgroundColor={backgroundColor}
+                            $fontColor={fontColor}
+                            $hasData={hasContextMenu}
+                            $isNaN={!hasData || !isNumericItem}
+                            onClick={selected ? handleDeselect : handleSelect}
+                            onKeyDown={onKeyDown}
+                        >
+                            <RichBodyCell
+                                cell={cell as Cell<ResultRow, ResultRow[0]>}
+                            >
+                                {children}
+                            </RichBodyCell>
+                        </Td>
+                    )}
+                />
             )}
         />
     );

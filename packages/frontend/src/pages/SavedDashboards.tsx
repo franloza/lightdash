@@ -2,8 +2,10 @@ import { Button, NonIdealState, Spinner } from '@blueprintjs/core';
 import { Breadcrumbs2, Tooltip2 } from '@blueprintjs/popover2';
 import { subject } from '@casl/ability';
 import { LightdashMode } from '@lightdash/common';
+import { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Redirect, useHistory, useParams } from 'react-router-dom';
+import DashboardCreateModal from '../components/common/modal/DashboardCreateModal';
 import Page from '../components/common/Page/Page';
 import {
     PageBreadcrumbsWrapper,
@@ -13,9 +15,15 @@ import {
 import ResourceList from '../components/common/ResourceList';
 import {
     ResourceBreadcrumbTitle,
+    ResourceEmptyStateHeader,
+    ResourceEmptyStateIcon,
     ResourceTag,
 } from '../components/common/ResourceList/ResourceList.styles';
 import { SortDirection } from '../components/common/ResourceList/ResourceTable';
+import {
+    ResourceListType,
+    wrapResourceList,
+} from '../components/common/ResourceList/ResourceTypeUtils';
 import { useCreateMutation } from '../hooks/dashboard/useDashboard';
 import { useDashboards } from '../hooks/dashboard/useDashboards';
 import { useSpaces } from '../hooks/useSpaces';
@@ -27,6 +35,8 @@ const SavedDashboards = () => {
     const history = useHistory();
     const { projectUuid } = useParams<{ projectUuid: string }>();
     const { isLoading, data: dashboards = [] } = useDashboards(projectUuid);
+    const [isCreateDashboardOpen, setIsCreateDashboardOpen] =
+        useState<boolean>(false);
 
     const {
         isLoading: isCreatingDashboard,
@@ -66,10 +76,7 @@ const SavedDashboards = () => {
     }
 
     const handleCreateDashboard = () => {
-        createDashboard({
-            name: DEFAULT_DASHBOARD_NAME,
-            tiles: [],
-        });
+        setIsCreateDashboardOpen(true);
     };
 
     return (
@@ -118,32 +125,58 @@ const SavedDashboards = () => {
                                 interactionKind="hover"
                             >
                                 <Button
-                                    text="Create dashboard"
                                     icon="plus"
                                     loading={isCreatingDashboard}
                                     onClick={handleCreateDashboard}
                                     disabled={hasNoSpaces}
                                     intent="primary"
-                                />
+                                >
+                                    Create dashboard
+                                </Button>
                             </Tooltip2>
                         )}
                 </PageHeader>
 
-                <ResourceList
-                    resourceType="dashboard"
-                    resourceIcon="control"
-                    resourceList={dashboards}
-                    defaultSort={{
-                        updatedAt: SortDirection.DESC,
+                <DashboardCreateModal
+                    projectUuid={projectUuid}
+                    isOpen={isCreateDashboardOpen}
+                    onClose={() => setIsCreateDashboardOpen(false)}
+                    onConfirm={(dashboard) => {
+                        history.push(
+                            `/projects/${projectUuid}/dashboards/${dashboard.uuid}/edit`,
+                        );
+
+                        setIsCreateDashboardOpen(false);
                     }}
-                    onClickCTA={
-                        !isDemo && !hasNoSpaces && userCanManageDashboards
-                            ? handleCreateDashboard
-                            : undefined
-                    }
-                    getURL={({ uuid }) =>
-                        `/projects/${projectUuid}/dashboards/${uuid}/view`
-                    }
+                />
+
+                <ResourceList
+                    items={wrapResourceList(
+                        dashboards,
+                        ResourceListType.DASHBOARD,
+                    )}
+                    defaultSort={{ updatedAt: SortDirection.DESC }}
+                    renderEmptyState={() => (
+                        <>
+                            <ResourceEmptyStateIcon icon="chart" size={40} />
+
+                            <ResourceEmptyStateHeader>
+                                No dashboards added yet
+                            </ResourceEmptyStateHeader>
+
+                            {!isDemo &&
+                                !hasNoSpaces &&
+                                userCanManageDashboards && (
+                                    <Button
+                                        icon="plus"
+                                        intent="primary"
+                                        onClick={handleCreateDashboard}
+                                    >
+                                        Create dashboard
+                                    </Button>
+                                )}
+                        </>
+                    )}
                 />
             </PageContentWrapper>
         </Page>

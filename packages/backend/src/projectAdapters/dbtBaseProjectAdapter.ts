@@ -143,7 +143,7 @@ export class DbtBaseProjectAdapter implements ProjectAdapter {
                 loadSources,
                 adapterType,
                 metrics,
-                this.warehouseClient.getStartOfWeek(),
+                this.warehouseClient,
             );
             return [...lazyExplores, ...failedExplores];
         } catch (e) {
@@ -156,6 +156,7 @@ export class DbtBaseProjectAdapter implements ProjectAdapter {
                 Logger.debug(
                     `Fetching table metadata for ${modelCatalog.length} tables`,
                 );
+
                 const warehouseCatalog = await this.warehouseClient.getCatalog(
                     modelCatalog,
                 );
@@ -179,7 +180,7 @@ export class DbtBaseProjectAdapter implements ProjectAdapter {
                     loadSources,
                     adapterType,
                     metrics,
-                    this.warehouseClient.getStartOfWeek(),
+                    this.warehouseClient,
                 );
                 return [...explores, ...failedExplores];
             }

@@ -10,8 +10,9 @@ import React, {
 } from 'react';
 import { Layout, Responsive, WidthProvider } from 'react-grid-layout';
 import { Helmet } from 'react-helmet';
-import { Redirect, useHistory, useParams } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import DashboardHeader from '../components/common/Dashboard/DashboardHeader';
+import ErrorState from '../components/common/ErrorState';
 import Page from '../components/common/Page/Page';
 import DashboardFilter from '../components/DashboardFilter';
 import ChartTile from '../components/DashboardTiles/DashboardChartTile';
@@ -27,7 +28,7 @@ import {
     useDashboardQuery,
     useDeleteMutation,
     useDuplicateDashboardMutation,
-    useMoveDashboard,
+    useMoveDashboardMutation,
     useUpdateDashboard,
 } from '../hooks/dashboard/useDashboard';
 import { useSavedQuery } from '../hooks/useSavedQuery';
@@ -63,7 +64,7 @@ const GridTile: FC<
             if (isLoading) return <></>;
             if (isError)
                 return (
-                    <TileBase title={''} {...props}>
+                    <TileBase title={''} {...props} clickableTitle={false}>
                         <NonIdealState
                             icon="lock"
                             title={`You don't have access to view this chart`}
@@ -122,18 +123,16 @@ const Dashboard = () => {
     const { data: dashboard, error: dashboardError } =
         useDashboardQuery(dashboardUuid);
     const [hasTilesChanged, setHasTilesChanged] = useState<boolean>(false);
-    const [dashboardName, setDashboardName] = useState<string>('');
     const {
         mutate,
         isSuccess,
         reset,
         isLoading: isSaving,
     } = useUpdateDashboard(dashboardUuid);
-    const { mutate: moveDashboardToSpace } = useMoveDashboard(dashboardUuid);
-    const { mutate: duplicateDashboard } = useDuplicateDashboardMutation(
-        dashboardUuid,
-        true,
-    );
+    const { mutate: moveDashboardToSpace } = useMoveDashboardMutation();
+    const { mutate: duplicateDashboard } = useDuplicateDashboardMutation({
+        showRedirectButton: true,
+    });
     const { mutateAsync: deleteDashboard } = useDeleteMutation();
 
     const layouts = useMemo(
@@ -257,7 +256,12 @@ const Dashboard = () => {
 
     const handleMoveDashboardToSpace = (spaceUuid: string) => {
         if (!dashboard) return;
-        moveDashboardToSpace({ name: dashboard.name, spaceUuid });
+
+        moveDashboardToSpace({
+            uuid: dashboard.uuid,
+            name: dashboard.name,
+            spaceUuid,
+        });
     };
 
     const handleDuplicateDashboard = () => {
@@ -270,11 +274,6 @@ const Dashboard = () => {
         deleteDashboard(dashboard.uuid).then(() => {
             history.replace(`/projects/${projectUuid}/dashboards`);
         });
-    };
-
-    const updateTitle = (name: string) => {
-        setHasTilesChanged(true);
-        setDashboardName(name);
     };
 
     const [isSaveWarningModalOpen, setIsSaveWarningModalOpen] =
@@ -324,7 +323,7 @@ const Dashboard = () => {
     ]);
 
     if (dashboardError) {
-        return <Redirect to="/no-access" />;
+        return <ErrorState error={dashboardError.error} />;
     }
     if (dashboard === undefined) {
         return <Spinner />;
@@ -336,7 +335,7 @@ const Dashboard = () => {
     return (
         <>
             <Helmet>
-                <title>{dashboardName || dashboard.name} - Lightdash</title>
+                <title>{dashboard.name} - Lightdash</title>
             </Helmet>
             <Alert
                 isOpen={isSaveWarningModalOpen}
@@ -365,6 +364,7 @@ const Dashboard = () => {
                 dashboardUpdatedAt={dashboard.updatedAt}
                 dashboardSpaceName={dashboard.spaceName}
                 dashboardSpaceUuid={dashboard.spaceUuid}
+                dashboardViews={dashboard.views}
                 isEditMode={isEditMode}
                 isSaving={isSaving}
                 hasDashboardChanged={
@@ -384,10 +384,9 @@ const Dashboard = () => {
                                 ...dashboardTemporaryFilters.metrics,
                             ],
                         },
-                        name: dashboardName || dashboard.name,
+                        name: dashboard.name,
                     })
                 }
-                onUpdate={(values) => values && updateTitle(values.name)}
                 onCancel={onCancel}
                 onMoveToSpace={handleMoveDashboardToSpace}
                 onDuplicate={handleDuplicateDashboard}
@@ -422,7 +421,9 @@ const Dashboard = () => {
                         );
                     })}
                 </ResponsiveGridLayout>
-                {dashboardTiles.length <= 0 && <EmptyStateNoTiles />}
+                {dashboardTiles.length <= 0 && (
+                    <EmptyStateNoTiles onAddTiles={onAddTiles} />
+                )}
             </Page>
         </>
     );

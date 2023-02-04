@@ -2,6 +2,8 @@ import {
     CreateSnowflakeCredentials,
     DimensionType,
     isWeekDay,
+    Metric,
+    MetricType,
     ParseError,
     WarehouseConnectionError,
     WarehouseQueryError,
@@ -11,6 +13,7 @@ import * as crypto from 'crypto';
 import { Connection, ConnectionOptions, createConnection } from 'snowflake-sdk';
 import * as Util from 'util';
 import { WarehouseCatalog, WarehouseClient } from '../types';
+import { getDefaultMetricSql } from '../utils/sql';
 
 export enum SnowflakeTypes {
     NUMBER = 'NUMBER',
@@ -176,11 +179,13 @@ export class SnowflakeWarehouseClient implements WarehouseClient {
         } catch (e) {
             throw new WarehouseQueryError(e.message);
         } finally {
-            // todo: does this need to be promisified? uncaught error in callback?
-            connection.destroy((err) => {
-                if (err) {
-                    throw new WarehouseConnectionError(err.message);
-                }
+            await new Promise((resolve, reject) => {
+                connection.destroy((err, conn) => {
+                    if (err) {
+                        reject(new WarehouseConnectionError(err.message));
+                    }
+                    resolve(conn);
+                });
             });
         }
     }
@@ -226,6 +231,40 @@ export class SnowflakeWarehouseClient implements WarehouseClient {
         await this.runQuery('SELECT 1');
     }
 
+    private async runTableCatalogQuery(
+        database: string,
+        schema: string,
+        table: string,
+    ) {
+        let connection: Connection;
+        const sqlText = `SHOW COLUMNS IN TABLE ${table}`;
+        try {
+            connection = createConnection({
+                ...this.connectionOptions,
+                schema,
+                database,
+            });
+            await Util.promisify(connection.connect)();
+        } catch (e) {
+            throw new WarehouseConnectionError(`Snowflake error: ${e.message}`);
+        }
+        try {
+            return await this.executeStatement(connection, sqlText);
+        } catch (e) {
+            // Ignore error and let UI show invalid table
+            return undefined;
+        } finally {
+            await new Promise((resolve, reject) => {
+                connection.destroy((err, conn) => {
+                    if (err) {
+                        reject(new WarehouseConnectionError(err.message));
+                    }
+                    resolve(conn);
+                });
+            });
+        }
+    }
+
     async getCatalog(
         config: {
             database: string;
@@ -233,28 +272,65 @@ export class SnowflakeWarehouseClient implements WarehouseClient {
             table: string;
         }[],
     ) {
-        const sqlText = 'SHOW COLUMNS IN ACCOUNT';
-        const { rows } = await this.runQuery(sqlText);
-        return rows.reduce<WarehouseCatalog>((acc, row) => {
-            const match = config.find(
-                ({ database, schema, table }) =>
-                    database.toLowerCase() ===
-                        row.database_name.toLowerCase() &&
-                    schema.toLowerCase() === row.schema_name.toLowerCase() &&
-                    table.toLowerCase() === row.table_name.toLowerCase(),
-            );
-            // Unquoted identifiers will always be
-            if (row.kind === 'COLUMN' && !!match) {
-                acc[match.database] = acc[match.database] || {};
-                acc[match.database][match.schema] =
-                    acc[match.database][match.schema] || {};
-                acc[match.database][match.schema][match.table] =
-                    acc[match.database][match.schema][match.table] || {};
-                acc[match.database][match.schema][match.table][
-                    row.column_name
-                ] = mapFieldType(JSON.parse(row.data_type).type);
+        const tablesMetadataPromises = config.map(
+            ({ database, schema, table }) =>
+                this.runTableCatalogQuery(database, schema, table),
+        );
+
+        const tablesMetadata = await Promise.all(tablesMetadataPromises);
+
+        return tablesMetadata.reduce<WarehouseCatalog>((acc, tableMetadata) => {
+            if (tableMetadata) {
+                tableMetadata.rows.forEach((row) => {
+                    const match = config.find(
+                        ({ database, schema, table }) =>
+                            database.toLowerCase() ===
+                                row.database_name.toLowerCase() &&
+                            schema.toLowerCase() ===
+                                row.schema_name.toLowerCase() &&
+                            table.toLowerCase() ===
+                                row.table_name.toLowerCase(),
+                    );
+                    // Unquoted identifiers will always be
+                    if (row.kind === 'COLUMN' && !!match) {
+                        acc[match.database] = acc[match.database] || {};
+                        acc[match.database][match.schema] =
+                            acc[match.database][match.schema] || {};
+                        acc[match.database][match.schema][match.table] =
+                            acc[match.database][match.schema][match.table] ||
+                            {};
+                        acc[match.database][match.schema][match.table][
+                            row.column_name
+                        ] = mapFieldType(JSON.parse(row.data_type).type);
+                    }
+                });
             }
             return acc;
         }, {});
+    }
+
+    getFieldQuoteChar() {
+        return '"';
+    }
+
+    getStringQuoteChar() {
+        return "'";
+    }
+
+    getEscapeStringQuoteChar() {
+        return '\\';
+    }
+
+    getMetricSql(sql: string, metric: Metric) {
+        switch (metric.type) {
+            case MetricType.PERCENTILE:
+                return `PERCENTILE_CONT(${
+                    (metric.percentile ?? 50) / 100
+                }) WITHIN GROUP (ORDER BY ${sql})`;
+            case MetricType.MEDIAN:
+                return `PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ${sql})`;
+            default:
+                return getDefaultMetricSql(sql, metric.type);
+        }
     }
 }

@@ -1,6 +1,7 @@
 import { Ability } from '@casl/ability';
 import {
     ApiSqlQueryResults,
+    ChartKind,
     DbtCloudIDEProjectConfig,
     DbtProjectType,
     Explore,
@@ -248,6 +249,9 @@ export const spacesWithSavedCharts: Space[] = [
                 name: 'saved chart name',
                 updatedAt: new Date(),
                 spaceUuid: 'uuid',
+                pinnedListUuid: undefined,
+                chartType: ChartKind.AREA,
+                views: 1,
             },
         ],
         projectUuid,

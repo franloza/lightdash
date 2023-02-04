@@ -7,6 +7,7 @@ import DuckDB from './Assets/duckdb.svg';
 import PostgressLogo from './Assets/postgresql.svg';
 import Redshift from './Assets/redshift.svg';
 import Snowflake from './Assets/snowflake.svg';
+import Trino from './Assets/trino.svg';
 import ConnectTitle from './ConnectTitle';
 import InviteExpertFooter from './InviteExpertFooter';
 import {
@@ -28,6 +29,11 @@ export const WarehouseTypeLabels = [
         label: 'BigQuery',
         key: WarehouseTypes.BIGQUERY,
         icon: <WarehouseIcon src={BigQuery} alt="BigQuery" />,
+    },
+    {
+        label: 'Trino',
+        key: WarehouseTypes.TRINO,
+        icon: <WarehouseIcon src={Trino} alt="Trino" />,
     },
     {
         label: 'Databricks',

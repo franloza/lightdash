@@ -1,5 +1,6 @@
 import { NonIdealState, Spinner, Tab, Tabs } from '@blueprintjs/core';
 import { Breadcrumbs2 } from '@blueprintjs/popover2';
+import { subject } from '@casl/ability';
 import { FC } from 'react';
 import { Helmet } from 'react-helmet';
 import {
@@ -9,17 +10,24 @@ import {
     useHistory,
     useParams,
 } from 'react-router-dom';
+import { Can } from '../components/common/Authorization';
+import ErrorState from '../components/common/ErrorState';
 import DbtCloudSettings from '../components/DbtCloudSettings';
 import ProjectUserAccess from '../components/ProjectAccess';
 import { UpdateProjectConnection } from '../components/ProjectConnection';
 import ProjectTablesConfiguration from '../components/ProjectTablesConfiguration/ProjectTablesConfiguration';
+import SettingsUsageAnalytics from '../components/SettingsUsageAnalytics';
 import { useProject } from '../hooks/useProject';
+import { useApp } from '../providers/AppProvider';
+import { useTracking } from '../providers/TrackingProvider';
+import { EventName } from '../types/Events';
 import { TabsWrapper } from './ProjectSettings.styles';
 
 enum SettingsTabs {
     SETTINGS = 'settings',
     TABLES_CONFIGURATION = 'tablesConfiguration',
     PROJECT_ACCESS = 'projectAccess',
+    USAGE_ANALYTICS = 'usageAnalytics',
 }
 
 enum IntegrationsTabs {
@@ -32,11 +40,19 @@ const ProjectSettings: FC = () => {
         projectUuid: string;
         tab?: SettingsTabs | IntegrationsTabs;
     }>();
+    const { user } = useApp();
 
     const { isLoading, data: project, error } = useProject(projectUuid);
     const basePath = `/generalSettings/projectManagement/${projectUuid}`;
+    const { track } = useTracking();
 
     const changeTab = (newTab: SettingsTabs | IntegrationsTabs) => {
+        if (newTab === SettingsTabs.USAGE_ANALYTICS) {
+            track({
+                name: EventName.USAGE_ANALYTICS_CLICKED,
+            });
+        }
+
         if (newTab === IntegrationsTabs.DBT_CLOUD) {
             history.push(`${basePath}/integrations/${newTab}`);
         } else {
@@ -45,14 +61,7 @@ const ProjectSettings: FC = () => {
     };
 
     if (error) {
-        return (
-            <div style={{ marginTop: '20px' }}>
-                <NonIdealState
-                    title="Error loading project"
-                    description={error.error.message}
-                />
-            </div>
-        );
+        return <ErrorState error={error.error} />;
     }
 
     if (!tab) {
@@ -97,6 +106,12 @@ const ProjectSettings: FC = () => {
                         title="Project Access"
                     />
                     <Tab id={IntegrationsTabs.DBT_CLOUD} title="dbt Cloud" />
+                    {user.data?.ability?.can('view', 'Analytics') && (
+                        <Tab
+                            id={SettingsTabs.USAGE_ANALYTICS}
+                            title="Usage Analytics"
+                        />
+                    )}
                 </Tabs>
             </TabsWrapper>
 
@@ -125,7 +140,12 @@ const ProjectSettings: FC = () => {
                 >
                     <DbtCloudSettings projectUuid={projectUuid} />
                 </Route>
-
+                <Route
+                    exact
+                    path={`${basePath}/${SettingsTabs.USAGE_ANALYTICS}`}
+                >
+                    <SettingsUsageAnalytics projectUuid={projectUuid} />
+                </Route>
                 <Redirect to={basePath} />
             </Switch>
         </>

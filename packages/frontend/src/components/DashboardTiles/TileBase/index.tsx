@@ -8,7 +8,7 @@ import {
 import { MenuItem2, Popover2, Tooltip2 } from '@blueprintjs/popover2';
 import { Dashboard, DashboardTileTypes } from '@lightdash/common';
 import React, { ReactNode, useState } from 'react';
-import { TileModal } from '../TileForms/TileModal';
+import TileUpdateModal from '../TileForms/TileUpdateModal';
 import {
     ButtonsWrapper,
     ChartContainer,
@@ -16,6 +16,7 @@ import {
     HeaderWrapper,
     TileBaseWrapper,
     Title,
+    TitleButton,
     TitleWrapper,
     TooltipContent,
 } from './TileBase.styles';
@@ -23,6 +24,8 @@ import {
 type Props<T> = {
     isEditMode: boolean;
     title: string;
+    clickableTitle: boolean;
+    titleHref?: string;
     description?: string;
     hasDescription: boolean;
     tile: T;
@@ -46,6 +49,8 @@ const TileBase = <T extends Dashboard['tiles'][number]>({
     children,
     extraHeaderElement,
     hasDescription,
+    clickableTitle,
+    titleHref,
 }: Props<T>) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isHovering, setIsHovering] = useState(false);
@@ -54,6 +59,7 @@ const TileBase = <T extends Dashboard['tiles'][number]>({
         tile.type !== DashboardTileTypes.MARKDOWN
             ? tile.properties.hideTitle
             : false;
+
     return (
         <TileBaseWrapper
             className={isLoading ? Classes.SKELETON : undefined}
@@ -66,7 +72,28 @@ const TileBase = <T extends Dashboard['tiles'][number]>({
                 onMouseLeave={() => setIsHovering(false)}
             >
                 <HeaderWrapper>
-                    {!hideTitle && description ? (
+                    {!hideTitle && description && clickableTitle ? (
+                        <Tooltip2
+                            content={
+                                <TooltipContent>{description}</TooltipContent>
+                            }
+                            position="bottom-left"
+                        >
+                            <TitleButton href={titleHref} target="_blank">
+                                <TitleWrapper hasDescription={hasDescription}>
+                                    <Title className="non-draggable">
+                                        {title}
+                                    </Title>
+                                </TitleWrapper>
+                            </TitleButton>
+                        </Tooltip2>
+                    ) : !hideTitle && clickableTitle ? (
+                        <TitleButton href={titleHref} target="_blank">
+                            <TitleWrapper hasDescription={hasDescription}>
+                                <Title className="non-draggable">{title}</Title>
+                            </TitleWrapper>
+                        </TitleButton>
+                    ) : !hideTitle && description ? (
                         <Tooltip2
                             content={
                                 <TooltipContent>{description}</TooltipContent>
@@ -98,7 +125,7 @@ const TileBase = <T extends Dashboard['tiles'][number]>({
                                         <>
                                             <MenuItem2
                                                 icon="edit"
-                                                text="Edit tile"
+                                                text="Edit tile content"
                                                 onClick={() =>
                                                     setIsEditing(true)
                                                 }
@@ -150,13 +177,16 @@ const TileBase = <T extends Dashboard['tiles'][number]>({
             <ChartContainer className="non-draggable cohere-block">
                 {children}
             </ChartContainer>
-            {isEditing && (
-                <TileModal
-                    onClose={() => setIsEditing(false)}
-                    tile={tile}
-                    onSubmit={onEdit}
-                />
-            )}
+
+            <TileUpdateModal
+                isOpen={isEditing}
+                tile={tile}
+                onClose={() => setIsEditing(false)}
+                onConfirm={(data) => {
+                    onEdit(data);
+                    setIsEditing(false);
+                }}
+            />
         </TileBaseWrapper>
     );
 };

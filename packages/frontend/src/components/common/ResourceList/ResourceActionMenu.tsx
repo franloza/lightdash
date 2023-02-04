@@ -1,48 +1,41 @@
 import { Button, Divider, Menu, Position } from '@blueprintjs/core';
 import { MenuItem2, Popover2 } from '@blueprintjs/popover2';
-import { Space } from '@lightdash/common';
-import { Dispatch, FC, SetStateAction, useEffect, useState } from 'react';
-import { useDuplicateDashboardMutation } from '../../../hooks/dashboard/useDashboard';
-import { useDuplicateMutation } from '../../../hooks/useSavedQuery';
+import { assertUnreachable, Space } from '@lightdash/common';
+import { FC, useState } from 'react';
 import { useApp } from '../../../providers/AppProvider';
-import { ActionTypeModal } from '../modal/ActionModal';
+import {
+    ResourceListAction,
+    ResourceListActionState,
+} from './ResourceActionHandlers';
+import { ResourceListItem, ResourceListType } from './ResourceTypeUtils';
 
 type Props = {
-    data: any;
+    item: ResourceListItem;
     spaces: Space[];
     url: string;
-    setActionState: Dispatch<
-        SetStateAction<{ actionType: number; data?: any }>
-    >;
-    isChart?: boolean;
+    onAction: (newAction: ResourceListActionState) => void;
 };
 
-const ResourceActionMenu: FC<Props> = ({
-    data,
-    spaces,
-    url,
-    setActionState,
-    isChart = false,
-}) => {
+const ResourceListActionMenu: FC<Props> = ({ item, spaces, url, onAction }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [itemId, setItemId] = useState<string>('');
 
     const { user } = useApp();
-    const { mutate: duplicateChart } = useDuplicateMutation(itemId, true);
-    const { mutate: duplicateDashboard } = useDuplicateDashboardMutation(
-        itemId,
-        true,
-    );
-    const isDashboardPage = url.includes('/dashboards') || !isChart;
+    const isDashboardPage =
+        url.includes('/dashboards') || item.type === ResourceListType.DASHBOARD;
 
-    useEffect(() => {
-        setItemId(data.uuid);
-    }, [data.uuid]);
-
-    if (isChart) {
-        if (user.data?.ability?.cannot('manage', 'SavedChart')) return <></>;
-    } else {
-        if (user.data?.ability?.cannot('manage', 'Dashboard')) return <></>;
+    switch (item.type) {
+        case ResourceListType.CHART:
+            if (user.data?.ability?.cannot('manage', 'SavedChart')) {
+                return null;
+            }
+            break;
+        case ResourceListType.DASHBOARD:
+            if (user.data?.ability?.cannot('manage', 'Dashboard')) {
+                return null;
+            }
+            break;
+        default:
+            return assertUnreachable(item, 'Resource type not supported');
     }
 
     return (
@@ -56,48 +49,45 @@ const ResourceActionMenu: FC<Props> = ({
             content={
                 <Menu>
                     <MenuItem2
-                        role="button"
+                        role="menuitem"
                         icon="edit"
                         text="Rename"
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+
                             setIsOpen(false);
-                            setActionState({
-                                actionType: ActionTypeModal.UPDATE,
-                                data,
-                            });
+                            onAction({ type: ResourceListAction.UPDATE, item });
                         }}
                     />
                     <MenuItem2
-                        role="button"
+                        role="menuitem"
                         icon="duplicate"
                         text="Duplicate"
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
 
-                            if (isChart) {
-                                duplicateChart(itemId);
-                            } else {
-                                duplicateDashboard(itemId);
-                            }
-
                             setIsOpen(false);
+                            onAction({
+                                type: ResourceListAction.DUPLICATE,
+                                item,
+                            });
                         }}
                     />
                     {!isDashboardPage && (
                         <MenuItem2
                             icon="insert"
                             text="Add to Dashboard"
+                            role="menuitem"
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+
                                 setIsOpen(false);
-                                setActionState({
-                                    actionType:
-                                        ActionTypeModal.ADD_TO_DASHBOARD,
-                                    data,
+                                onAction({
+                                    type: ResourceListAction.ADD_TO_DASHBOARD,
+                                    item,
                                 });
                             }}
                         />
@@ -113,7 +103,8 @@ const ResourceActionMenu: FC<Props> = ({
                         }}
                     >
                         {spaces.map((space) => {
-                            const isSelected = data.spaceUuid === space.uuid;
+                            const isSelected =
+                                item.data.spaceUuid === space.uuid;
                             return (
                                 <MenuItem2
                                     key={space.uuid}
@@ -125,15 +116,17 @@ const ResourceActionMenu: FC<Props> = ({
                                         // Use className disabled instead of disabled property to capture and preventdefault its clicks
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        if (!isSelected)
-                                            setActionState({
-                                                actionType:
-                                                    ActionTypeModal.MOVE_TO_SPACE,
+
+                                        if (!isSelected) {
+                                            onAction({
+                                                type: ResourceListAction.MOVE_TO_SPACE,
+                                                item,
                                                 data: {
-                                                    ...data,
+                                                    ...item.data,
                                                     spaceUuid: space.uuid,
                                                 },
                                             });
+                                        }
                                     }}
                                 />
                             );
@@ -147,9 +140,10 @@ const ResourceActionMenu: FC<Props> = ({
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setActionState({
-                                    actionType: ActionTypeModal.CREATE_SPACE,
-                                    data,
+
+                                onAction({
+                                    type: ResourceListAction.CREATE_SPACE,
+                                    item,
                                 });
                             }}
                         />
@@ -158,18 +152,16 @@ const ResourceActionMenu: FC<Props> = ({
                     <Divider />
 
                     <MenuItem2
-                        role="button"
+                        role="menuitem"
                         icon="cross"
                         text="Delete"
                         intent="danger"
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+
                             setIsOpen(false);
-                            setActionState({
-                                actionType: ActionTypeModal.DELETE,
-                                data,
-                            });
+                            onAction({ type: ResourceListAction.DELETE, item });
                         }}
                     />
                 </Menu>
@@ -181,6 +173,7 @@ const ResourceActionMenu: FC<Props> = ({
                 onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+
                     setIsOpen(true);
                 }}
             />
@@ -188,4 +181,4 @@ const ResourceActionMenu: FC<Props> = ({
     );
 };
 
-export default ResourceActionMenu;
+export default ResourceListActionMenu;

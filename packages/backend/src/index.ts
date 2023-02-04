@@ -22,6 +22,7 @@ import {
     googlePassportStrategy,
     localPassportStrategy,
     oktaPassportStrategy,
+    oneLoginPassportStrategy,
 } from './controllers/authentication';
 import database from './database/database';
 import { errorHandler } from './errors';
@@ -61,7 +62,11 @@ const app = express();
 const tracesSampler = (context: SamplingContext): boolean | number => {
     if (
         context.request?.url?.endsWith('/status') ||
-        context.request?.url?.endsWith('/health')
+        context.request?.url?.endsWith('/health') ||
+        context.request?.url?.endsWith('/favicon.ico') ||
+        context.request?.url?.endsWith('/robots.txt') ||
+        context.request?.url?.endsWith('livez') ||
+        context.request?.headers?.['user-agent']?.includes('GoogleHC')
     ) {
         return 0.0;
     }
@@ -80,7 +85,7 @@ Sentry.init({
             app,
         }),
     ],
-    ignoreErrors: ['WarehouseQueryError'],
+    ignoreErrors: ['WarehouseQueryError', 'FieldReferenceError'],
     tracesSampler,
     beforeBreadcrumb(breadcrumb) {
         if (
@@ -95,7 +100,7 @@ Sentry.init({
 });
 app.use(
     Sentry.Handlers.requestHandler({
-        user: ['userUuid', 'organizationUuid', 'organizationName'],
+        user: ['userUuid', 'organizationUuid', 'organizationName', 'email'],
     }) as express.RequestHandler,
 );
 app.use(Sentry.Handlers.tracingHandler());
@@ -174,11 +179,30 @@ if (
     );
 }
 
-// frontend
-app.use(express.static(path.join(__dirname, '../../frontend/build')));
+// frontend assets - immutable because vite appends hash to filenames
+app.use(
+    '/assets',
+    express.static(path.join(__dirname, '../../frontend/build/assets'), {
+        immutable: true,
+        maxAge: '1y',
+    }),
+);
+
+// frontend static files - no cache
+app.use(
+    express.static(path.join(__dirname, '../../frontend/build'), {
+        setHeaders: () => ({
+            // private - browsers can cache but not CDNs
+            // no-cache - caches must revalidate with the origin server before using a cached copy
+            'Cache-Control': 'no-cache, private',
+        }),
+    }),
+);
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../frontend/build', 'index.html'));
+    res.sendFile(path.join(__dirname, '../../frontend/build', 'index.html'), {
+        headers: { 'Cache-Control': 'no-cache, private' },
+    });
 });
 
 // errors
@@ -237,6 +261,9 @@ if (googlePassportStrategy) {
 }
 if (oktaPassportStrategy) {
     passport.use('okta', oktaPassportStrategy);
+}
+if (oneLoginPassportStrategy) {
+    passport.use('oneLogin', oneLoginPassportStrategy);
 }
 passport.serializeUser((user, done) => {
     // On login (user changes), user.userUuid is written to the session store in the `sess.passport.data` field

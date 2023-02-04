@@ -32,7 +32,7 @@ import {
     OrganizationTableName,
 } from '../database/entities/organizations';
 import {
-    createPasswordLogin,
+    DbPasswordLoginIn,
     PasswordLoginTableName,
 } from '../database/entities/passwordLogins';
 import { DbPersonalAccessToken } from '../database/entities/personalAccessTokens';
@@ -114,6 +114,19 @@ export class UserModel {
         this.database = database;
     }
 
+    // DB Errors:
+    // user_id does not exist (foreign key)
+    // user_id already has password (not unique)
+
+    static async createPasswordLogin(
+        db: Knex,
+        passwordLoginIn: DbPasswordLoginIn,
+    ) {
+        await db(PasswordLoginTableName).insert<DbPasswordLoginIn>(
+            passwordLoginIn,
+        );
+    }
+
     static async createUserTransaction(
         trx: Transaction,
         organizationId: number,
@@ -161,7 +174,7 @@ export class UserModel {
                 is_primary: true,
             });
             if (createUser.password) {
-                await createPasswordLogin(trx, {
+                await UserModel.createPasswordLogin(trx, {
                     user_id: newUser.user_id,
                     password_hash: await bcrypt.hash(
                         createUser.password,
@@ -250,15 +263,11 @@ export class UserModel {
                 'organizations.created_at as organization_created_at',
             );
         if (user === undefined) {
-            throw new NotFoundError(
-                `No user found with uuid ${userUuid} and password`,
-            );
+            throw new NotFoundError(`No user found with uuid ${userUuid}`);
         }
         const match = await bcrypt.compare(password, user.password_hash || '');
         if (!match) {
-            throw new NotFoundError(
-                `No User found with uuid ${userUuid} and password`,
-            );
+            throw new NotFoundError('Password not recognized.');
         }
         return mapDbUserDetailsToLightdashUser(user);
     }
@@ -276,36 +285,31 @@ export class UserModel {
         }: Partial<UpdateUserArgs>,
     ): Promise<LightdashUser> {
         await this.database.transaction(async (trx) => {
-            try {
-                const [user] = await trx(UserTableName)
-                    .where('user_uuid', userUuid)
-                    .update<DbUserUpdate>({
-                        first_name: firstName,
-                        last_name: lastName,
-                        is_setup_complete: isSetupComplete,
-                        is_marketing_opted_in: isMarketingOptedIn,
-                        is_tracking_anonymized: canTrackingBeAnonymized()
-                            ? isTrackingAnonymized
-                            : false,
-                    })
-                    .returning('*');
+            const [user] = await trx(UserTableName)
+                .where('user_uuid', userUuid)
+                .update<DbUserUpdate>({
+                    first_name: firstName,
+                    last_name: lastName,
+                    is_setup_complete: isSetupComplete,
+                    is_marketing_opted_in: isMarketingOptedIn,
+                    is_tracking_anonymized: canTrackingBeAnonymized()
+                        ? isTrackingAnonymized
+                        : false,
+                })
+                .returning('*');
 
-                if (email && currentEmail !== email) {
-                    if (currentEmail) {
-                        await deleteEmail(trx, {
-                            user_id: user.user_id,
-                            email: currentEmail,
-                        });
-                    }
-                    await createEmail(trx, {
+            if (email && currentEmail !== email) {
+                if (currentEmail) {
+                    await deleteEmail(trx, {
                         user_id: user.user_id,
-                        email,
-                        is_primary: true,
+                        email: currentEmail,
                     });
                 }
-            } catch (e) {
-                await trx.rollback(e);
-                throw e;
+                await createEmail(trx, {
+                    user_id: user.user_id,
+                    email,
+                    is_primary: true,
+                });
             }
         });
         return this.getUserDetailsByUuid(userUuid);
@@ -411,42 +415,37 @@ export class UserModel {
         activateUser: ActivateUser | OpenIdUser,
     ): Promise<LightdashUser> {
         await this.database.transaction(async (trx) => {
-            try {
-                const [user] = await trx(UserTableName)
-                    .where('user_uuid', userUuid)
-                    .update<DbUserUpdate>({
-                        first_name: isOpenIdUser(activateUser)
-                            ? activateUser.openId.firstName
-                            : activateUser.firstName,
-                        last_name: isOpenIdUser(activateUser)
-                            ? activateUser.openId.lastName
-                            : activateUser.lastName,
-                        is_active: true,
+            const [user] = await trx(UserTableName)
+                .where('user_uuid', userUuid)
+                .update<DbUserUpdate>({
+                    first_name: isOpenIdUser(activateUser)
+                        ? activateUser.openId.firstName
+                        : activateUser.firstName,
+                    last_name: isOpenIdUser(activateUser)
+                        ? activateUser.openId.lastName
+                        : activateUser.lastName,
+                    is_active: true,
+                })
+                .returning('*');
+
+            if (!isOpenIdUser(activateUser)) {
+                await UserModel.createPasswordLogin(trx, {
+                    user_id: user.user_id,
+                    password_hash: await bcrypt.hash(
+                        activateUser.password,
+                        await bcrypt.genSalt(),
+                    ),
+                });
+            } else {
+                await trx(OpenIdIdentitiesTableName)
+                    .insert({
+                        issuer_type: activateUser.openId.issuerType,
+                        issuer: activateUser.openId.issuer,
+                        subject: activateUser.openId.subject,
+                        user_id: user.user_id,
+                        email: activateUser.openId.email,
                     })
                     .returning('*');
-
-                if (!isOpenIdUser(activateUser)) {
-                    await createPasswordLogin(trx, {
-                        user_id: user.user_id,
-                        password_hash: await bcrypt.hash(
-                            activateUser.password,
-                            await bcrypt.genSalt(),
-                        ),
-                    });
-                } else {
-                    await trx(OpenIdIdentitiesTableName)
-                        .insert({
-                            issuer_type: activateUser.openId.issuerType,
-                            issuer: activateUser.openId.issuer,
-                            subject: activateUser.openId.subject,
-                            user_id: user.user_id,
-                            email: activateUser.openId.email,
-                        })
-                        .returning('*');
-                }
-            } catch (e) {
-                await trx.rollback(e);
-                throw e;
             }
         });
         return this.getUserDetailsByUuid(userUuid);
@@ -592,5 +591,28 @@ export class UserModel {
             personalAccessToken:
                 PersonalAccessTokenModel.mapDbObjectToPersonalAccessToken(row),
         };
+    }
+
+    async createPassword(userId: number, newPassword: string): Promise<void> {
+        return UserModel.createPasswordLogin(this.database, {
+            user_id: userId,
+            password_hash: await bcrypt.hash(
+                newPassword,
+                await bcrypt.genSalt(),
+            ),
+        });
+    }
+
+    async updatePassword(userId: number, newPassword: string): Promise<void> {
+        return this.database(PasswordLoginTableName)
+            .where({
+                user_id: userId,
+            })
+            .update({
+                password_hash: await bcrypt.hash(
+                    newPassword,
+                    await bcrypt.genSalt(),
+                ),
+            });
     }
 }

@@ -59,6 +59,14 @@ import {
     PersonalAccessTokenTableName,
 } from '../database/entities/personalAccessTokens';
 import {
+    PinnedChartTable,
+    PinnedChartTableName,
+    PinnedDashboardTable,
+    PinnedDashboardTableName,
+    PinnedListTable,
+    PinnedListTableName,
+} from '../database/entities/pinnedList';
+import {
     ProjectMembershipsTable,
     ProjectMembershipsTableName,
 } from '../database/entities/projectMemberships';
@@ -85,6 +93,10 @@ import {
 import { SessionTable, SessionTableName } from '../database/entities/sessions';
 import { ShareTable, ShareTableName } from '../database/entities/share';
 import {
+    DbSlackAuthTokens,
+    SlackAuthTokensTable,
+} from '../database/entities/slackAuthentication';
+import {
     SpaceShareTable,
     SpaceShareTableName,
     SpaceTable,
@@ -95,6 +107,13 @@ import {
     WarehouseCredentialTable,
     WarehouseCredentialTableName,
 } from '../database/entities/warehouseCredentials';
+
+import {
+    AnalyticsChartViewsTableName,
+    AnalyticsDashboardViewsTableName,
+    DbAnalyticsChartViews,
+    DbAnalyticsDashboardViews,
+} from '../database/entities/analytics';
 
 declare module 'knex/types/tables' {
     interface Tables {
@@ -133,5 +152,11 @@ declare module 'knex/types/tables' {
         [DbtCloudIntegrationsTableName]: DbtCloudIntegrationsTable;
         [ShareTableName]: ShareTable;
         [SpaceShareTableName]: SpaceShareTable;
+        [SlackAuthTokensTable]: DbSlackAuthTokens;
+        [AnalyticsChartViewsTableName]: DbAnalyticsChartViews;
+        [AnalyticsDashboardViewsTableName]: DbAnalyticsDashboardViews;
+        [PinnedListTableName]: PinnedListTable;
+        [PinnedChartTableName]: PinnedChartTable;
+        [PinnedDashboardTableName]: PinnedDashboardTable;
     }
 }

@@ -10,9 +10,9 @@ import { subject } from '@casl/ability';
 import { FC, memo, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useCreateMutation } from '../../../hooks/dashboard/useDashboard';
-import { DEFAULT_DASHBOARD_NAME } from '../../../pages/SavedDashboards';
 import { useApp } from '../../../providers/AppProvider';
 import { Can } from '../../common/Authorization';
+import DashboardCreateModal from '../../common/modal/DashboardCreateModal';
 import SpaceActionModal, { ActionType } from '../../common/SpaceActionModal';
 import {
     ButtonWrapper,
@@ -32,6 +32,7 @@ interface ExploreItemProps {
     title: string;
     description: string;
 }
+
 const ExploreItem: FC<ExploreItemProps> = ({ icon, title, description }) => {
     return (
         <HelpItem>
@@ -49,21 +50,11 @@ const ExploreMenu: FC<Props> = memo(({ projectUuid }) => {
     const { user } = useApp();
     const history = useHistory();
     const [isOpen, setIsOpen] = useState<boolean>(false);
-    const {
-        isLoading: isCreatingDashboard,
-        isSuccess: hasCreatedDashboard,
-        mutate: createDashboard,
-        data: newDashboard,
-        reset,
-    } = useCreateMutation(projectUuid);
-    const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState<boolean>(false);
 
-    if (!isCreatingDashboard && hasCreatedDashboard && newDashboard) {
-        history.push(
-            `/projects/${projectUuid}/dashboards/${newDashboard.uuid}`,
-        );
-        reset();
-    }
+    const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState<boolean>(false);
+    const [isCreateDashboardOpen, setIsCreateDashboardOpen] =
+        useState<boolean>(false);
+
     return (
         <>
             <Popover2
@@ -116,10 +107,7 @@ const ExploreMenu: FC<Props> = memo(({ projectUuid }) => {
                             <ButtonWrapper
                                 onClick={() => {
                                     setIsOpen(false);
-                                    createDashboard({
-                                        name: DEFAULT_DASHBOARD_NAME,
-                                        tiles: [],
-                                    });
+                                    setIsCreateDashboardOpen(true);
                                 }}
                             >
                                 <ExploreItem
@@ -173,6 +161,19 @@ const ExploreMenu: FC<Props> = memo(({ projectUuid }) => {
                     }}
                 />
             )}
+
+            <DashboardCreateModal
+                projectUuid={projectUuid}
+                isOpen={isCreateDashboardOpen}
+                onClose={() => setIsCreateDashboardOpen(false)}
+                onConfirm={(dashboard) => {
+                    history.push(
+                        `/projects/${projectUuid}/dashboards/${dashboard.uuid}/edit`,
+                    );
+
+                    setIsCreateDashboardOpen(false);
+                }}
+            />
         </>
     );
 });

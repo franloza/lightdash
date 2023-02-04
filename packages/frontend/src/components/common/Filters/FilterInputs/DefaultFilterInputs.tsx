@@ -1,37 +1,42 @@
-import { NumericInput, TagInput } from '@blueprintjs/core';
+import { TagInput } from '@blueprintjs/core';
 import { Popover2Props } from '@blueprintjs/popover2';
 import {
-    FilterableField,
+    assertUnreachable,
+    ConditionalRule,
+    FilterableItem,
     FilterOperator,
-    FilterRule,
     FilterType,
+    isFilterRule,
 } from '@lightdash/common';
 import { isString } from 'lodash-es';
-import React, { FC } from 'react';
+import React from 'react';
 import { useFiltersContext } from '../FiltersProvider';
 import MultiAutoComplete from './AutoComplete/MultiAutoComplete';
+import { StyledNumericInput } from './NumericInput.styles';
 
-export type FilterInputsProps<T extends FilterRule = FilterRule> = {
+export type FilterInputsProps<T extends ConditionalRule> = {
     filterType: FilterType;
-    field: FilterableField;
-    filterRule: T;
-    onChange: (value: FilterRule) => void;
+    field: FilterableItem;
+    rule: T;
+    onChange: (value: T) => void;
     popoverProps?: Popover2Props;
     disabled?: boolean;
 };
 
-const DefaultFilterInputs: FC<FilterInputsProps> = ({
+const DefaultFilterInputs = <T extends ConditionalRule>({
     field,
     filterType,
-    filterRule,
+    rule,
     popoverProps,
     disabled,
     onChange,
-}) => {
+}: React.PropsWithChildren<FilterInputsProps<T>>) => {
     const { getField } = useFiltersContext();
-    const suggestions = getField(filterRule)?.suggestions;
-    const filterOperator = filterRule.operator;
-    switch (filterRule.operator) {
+    const suggestions = isFilterRule(rule)
+        ? getField(rule)?.suggestions
+        : undefined;
+
+    switch (rule.operator) {
         case FilterOperator.NULL:
         case FilterOperator.NOT_NULL:
             return <span style={{ width: '100%' }} />;
@@ -45,12 +50,12 @@ const DefaultFilterInputs: FC<FilterInputsProps> = ({
                     <MultiAutoComplete
                         disabled={disabled}
                         field={field}
-                        values={(filterRule.values || []).filter(isString)}
+                        values={(rule.values || []).filter(isString)}
                         suggestions={suggestions || []}
                         popoverProps={popoverProps}
                         onChange={(values) =>
                             onChange({
-                                ...filterRule,
+                                ...rule,
                                 values,
                             })
                         }
@@ -70,10 +75,10 @@ const DefaultFilterInputs: FC<FilterInputsProps> = ({
                                 : 'text',
                     }}
                     tagProps={{ minimal: true }}
-                    values={filterRule.values || []}
+                    values={rule.values || []}
                     onChange={(values) =>
                         onChange({
-                            ...filterRule,
+                            ...rule,
                             values,
                         })
                     }
@@ -85,28 +90,38 @@ const DefaultFilterInputs: FC<FilterInputsProps> = ({
         case FilterOperator.LESS_THAN:
         case FilterOperator.LESS_THAN_OR_EQUAL:
         case FilterOperator.IN_THE_PAST:
-            const parsedValue = parseInt(filterRule.values?.[0], 10);
+        case FilterOperator.IN_THE_NEXT:
+        case FilterOperator.IN_THE_CURRENT:
+        case FilterOperator.IN_BETWEEN:
+            const value = rule.values?.[0];
+            let parsedValue: number | undefined;
+
+            if (typeof value === 'string') parsedValue = parseInt(value, 10);
+            else if (typeof value === 'number') parsedValue = value;
+            else parsedValue = undefined;
+
+            if (parsedValue && isNaN(parsedValue)) parsedValue = undefined;
+
             return (
-                <NumericInput
+                <StyledNumericInput
                     className={disabled ? 'disabled-filter' : ''}
                     disabled={disabled}
                     fill
-                    value={isNaN(parsedValue) ? undefined : parsedValue}
-                    min={0}
-                    onValueChange={(value) =>
+                    type="number"
+                    defaultValue={parsedValue}
+                    onValueChange={(numericValue, stringValue) => {
                         onChange({
-                            ...filterRule,
-                            values: [value],
-                        })
-                    }
+                            ...rule,
+                            values: stringValue === '' ? [] : [numericValue],
+                        });
+                    }}
                 />
             );
-        default: {
-            const never: never = filterRule.operator;
-            throw Error(
-                `No form implemented for String filter operator ${filterOperator}`,
+        default:
+            return assertUnreachable(
+                rule.operator,
+                `No form implemented for String filter operator ${rule.operator}`,
             );
-        }
     }
 };
 

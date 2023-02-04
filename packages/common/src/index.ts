@@ -1,3 +1,4 @@
+import { UserActivity } from './types/analytics';
 import { Dashboard, DashboardBasicDetails } from './types/dashboard';
 import { convertAdditionalMetric } from './types/dbt';
 import {
@@ -14,16 +15,13 @@ import {
     FieldId,
     fieldId,
     FilterableField,
-    isDimension,
-    isField,
     Metric,
-    MetricType,
+    TableCalculation,
 } from './types/field';
 import {
     AdditionalMetric,
     isAdditionalMetric,
     MetricQuery,
-    TableCalculation,
 } from './types/metricQuery';
 import {
     OrganizationMemberProfile,
@@ -47,6 +45,7 @@ import { Space } from './types/space';
 import { TableBase } from './types/table';
 import { LightdashUser } from './types/user';
 import { formatItemValue } from './utils/formatting';
+import { getItemId, getItemLabel } from './utils/item';
 import { WeekDay } from './utils/timeFrames';
 
 export * from './authorization/index';
@@ -56,10 +55,13 @@ export * from './compiler/filtersCompiler';
 export * from './compiler/translator';
 export { default as lightdashDbtYamlSchema } from './schemas/json/lightdash-dbt-2.0.json';
 export * from './templating/template';
+export * from './types/analytics';
 export * from './types/api';
 export * from './types/api/errors';
 export * from './types/api/integrations';
 export * from './types/api/share';
+export * from './types/conditionalFormatting';
+export * from './types/conditionalRule';
 export * from './types/dashboard';
 export * from './types/dbt';
 export * from './types/dbtCloud';
@@ -72,6 +74,7 @@ export * from './types/metricQuery';
 export * from './types/organization';
 export * from './types/organizationMemberProfile';
 export * from './types/personalAccessToken';
+export * from './types/pinning';
 export * from './types/projectMemberProfile';
 export * from './types/results';
 export * from './types/savedCharts';
@@ -82,11 +85,14 @@ export * from './types/space';
 export * from './types/table';
 export * from './types/timeFrames';
 export * from './types/user';
+export * from './types/warehouse';
 export * from './utils/api';
 export { default as assertUnreachable } from './utils/assertUnreachable';
+export * from './utils/conditionalFormatting';
 export * from './utils/filters';
 export * from './utils/formatting';
 export * from './utils/github';
+export * from './utils/item';
 export * from './utils/timeFrames';
 
 export const validateEmail = (email: string): boolean => {
@@ -352,7 +358,7 @@ export type UpdateUserArgs = {
 export type CreateOpenIdIdentity = {
     subject: string;
     issuer: string;
-    issuerType: 'google' | 'okta';
+    issuerType: 'google' | 'okta' | 'oneLogin';
     userId: number;
     email: string;
 };
@@ -470,7 +476,8 @@ type ApiResults =
     | DbtCloudMetadataResponseMetrics
     | DbtCloudIntegration
     | ShareUrl
-    | SlackSettings;
+    | SlackSettings
+    | UserActivity;
 
 export type ApiResponse = {
     status: 'ok';
@@ -540,6 +547,10 @@ export type HealthState = {
             enabled: boolean;
             loginPath: string;
         };
+        oneLogin: {
+            enabled: boolean;
+            loginPath: string;
+        };
     };
     cohere: {
         token: string;
@@ -563,6 +574,7 @@ export enum WarehouseTypes {
     REDSHIFT = 'redshift',
     SNOWFLAKE = 'snowflake',
     DATABRICKS = 'databricks',
+    TRINO = 'trino',
     DUCKDB = 'duckdb',
 }
 
@@ -585,6 +597,8 @@ export const sensitiveCredentialsFieldNames = [
     'password',
     'keyfileContents',
     'personalAccessToken',
+    'privateKey',
+    'privateKeyPass',
 ] as const;
 
 export const sensitiveDbtCredentialsFieldNames = [
@@ -655,6 +669,23 @@ export type PostgresCredentials = Omit<
     SensitiveCredentialsFieldNames
 >;
 
+export type CreateTrinoCredentials = {
+    type: WarehouseTypes.TRINO;
+    host: string;
+    user: string;
+    password: string;
+    port: number;
+    dbname: string;
+    schema: string;
+    http_scheme: string;
+    startOfWeek?: WeekDay | null;
+};
+
+export type TrinoCredentials = Omit<
+    CreateTrinoCredentials,
+    SensitiveCredentialsFieldNames
+>;
+
 export type CreateRedshiftCredentials = {
     type: WarehouseTypes.REDSHIFT;
     host: string;
@@ -704,6 +735,7 @@ export type CreateWarehouseCredentials =
     | CreatePostgresCredentials
     | CreateSnowflakeCredentials
     | CreateDatabricksCredentials
+    | CreateTrinoCredentials
     | CreateDuckdbCredentials;
 
 export type WarehouseCredentials =
@@ -712,6 +744,7 @@ export type WarehouseCredentials =
     | PostgresCredentials
     | BigqueryCredentials
     | DatabricksCredentials
+    | TrinoCredentials
     | DuckdbCredentials;
 
 export const DbtProjectTypeLabels: Record<DbtProjectType, string> = {
@@ -721,7 +754,7 @@ export const DbtProjectTypeLabels: Record<DbtProjectType, string> = {
     [DbtProjectType.GITLAB]: 'GitLab',
     [DbtProjectType.BITBUCKET]: 'BitBucket',
     [DbtProjectType.AZURE_DEVOPS]: 'Azure DevOps',
-    [DbtProjectType.NONE]: 'None',
+    [DbtProjectType.NONE]: 'CLI',
 };
 
 export interface DbtProjectConfigBase {
@@ -740,6 +773,8 @@ export interface DbtProjectCompilerBase extends DbtProjectConfigBase {
 
 export interface DbtNoneProjectConfig extends DbtProjectCompilerBase {
     type: DbtProjectType.NONE;
+
+    hideRefreshButton?: boolean;
 }
 
 export interface DbtLocalProjectConfig extends DbtProjectCompilerBase {
@@ -830,55 +865,6 @@ export type UpdateProject = Omit<
     'projectUuid' | 'organizationUuid' | 'type'
 > & {
     warehouseConnection: CreateWarehouseCredentials;
-};
-export const findItem = (
-    items: Array<Field | TableCalculation>,
-    id: string | undefined,
-) =>
-    items.find((item) =>
-        isField(item) ? fieldId(item) === id : item.name === id,
-    );
-export const getItemId = (item: Field | AdditionalMetric | TableCalculation) =>
-    isField(item) || isAdditionalMetric(item) ? fieldId(item) : item.name;
-export const getItemLabel = (item: Field | TableCalculation) =>
-    isField(item) ? `${item.tableLabel} ${item.label}` : item.displayName;
-export const getItemIcon = (
-    item: Field | TableCalculation | AdditionalMetric,
-) => {
-    if (isField(item)) {
-        return isDimension(item) ? 'tag' : 'numerical';
-    }
-    return 'function';
-};
-export const getItemColor = (
-    item: Field | TableCalculation | AdditionalMetric,
-) => {
-    if (isField(item)) {
-        return isDimension(item) ? '#0E5A8A' : '#A66321';
-    }
-    return '#0A6640';
-};
-
-export const isNumericItem = (
-    item: Field | AdditionalMetric | TableCalculation | undefined,
-): boolean => {
-    if (!item) {
-        return false;
-    }
-    if (isField(item) || isAdditionalMetric(item)) {
-        const numericTypes: string[] = [
-            DimensionType.NUMBER,
-            MetricType.NUMBER,
-            MetricType.AVERAGE,
-            MetricType.COUNT,
-            MetricType.COUNT_DISTINCT,
-            MetricType.SUM,
-            MetricType.MIN,
-            MetricType.MAX,
-        ];
-        return numericTypes.includes(item.type);
-    }
-    return true;
 };
 
 export const getResultValues = (

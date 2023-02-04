@@ -115,3 +115,10 @@ export const FilterLabel = styled.p`
     font-size: 12px;
     font-weight: 500;
 `;
+
+export const TitleButton = styled.a`
+    :hover {
+        text-decoration: underline;
+        text-decoration-color: ${Colors.GRAY5};
+    }
+`;

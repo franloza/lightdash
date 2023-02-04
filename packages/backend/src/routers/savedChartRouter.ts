@@ -4,7 +4,11 @@ import {
     isAuthenticated,
     unauthorisedInDemo,
 } from '../controllers/authentication';
-import { projectService, savedChartsService } from '../services/services';
+import {
+    analyticsService,
+    projectService,
+    savedChartsService,
+} from '../services/services';
 
 export const savedChartRouter = express.Router();
 
@@ -15,6 +19,23 @@ savedChartRouter.get(
     async (req, res, next) => {
         savedChartsService
             .get(req.params.savedQueryUuid, req.user!)
+            .then((results) => {
+                res.json({
+                    status: 'ok',
+                    results,
+                });
+            })
+            .catch(next);
+    },
+);
+
+savedChartRouter.get(
+    '/:savedQueryUuid/views',
+    allowApiKeyAuthentication,
+    isAuthenticated,
+    async (req, res, next) => {
+        analyticsService
+            .getChartViews(req.params.savedQueryUuid)
             .then((results) => {
                 res.json({
                     status: 'ok',
@@ -67,6 +88,24 @@ savedChartRouter.patch(
     async (req, res, next) => {
         savedChartsService
             .update(req.user!, req.params.savedQueryUuid, req.body)
+            .then((results) => {
+                res.json({
+                    status: 'ok',
+                    results,
+                });
+            })
+            .catch(next);
+    },
+);
+
+savedChartRouter.patch(
+    '/:savedQueryUuid/pinning',
+    allowApiKeyAuthentication,
+    isAuthenticated,
+    unauthorisedInDemo,
+    async (req, res, next) => {
+        savedChartsService
+            .togglePinning(req.user!, req.params.savedQueryUuid)
             .then((results) => {
                 res.json({
                     status: 'ok',

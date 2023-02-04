@@ -2,6 +2,7 @@ import { Menu, NonIdealState } from '@blueprintjs/core';
 import React, { FC } from 'react';
 import { Helmet } from 'react-helmet';
 import { Redirect, Route, Switch } from 'react-router-dom';
+import ErrorState from '../components/common/ErrorState';
 import Content from '../components/common/Page/Content';
 import { PageWithSidebar } from '../components/common/Page/Page.styles';
 import Sidebar from '../components/common/Page/Sidebar';
@@ -9,6 +10,7 @@ import RouterMenuItem from '../components/common/RouterMenuItem';
 import PageSpinner from '../components/PageSpinner';
 import AccessTokensPanel from '../components/UserSettings/AccessTokensPanel';
 import AppearancePanel from '../components/UserSettings/AppearancePanel';
+import { DeleteOrganisationPanel } from '../components/UserSettings/DeleteOrganisationPanel';
 import OrganisationPanel from '../components/UserSettings/OrganisationPanel';
 import PasswordPanel from '../components/UserSettings/PasswordPanel';
 import ProfilePanel from '../components/UserSettings/ProfilePanel';
@@ -51,16 +53,13 @@ const Settings: FC = () => {
 
     if (userError || healthError || organizationError) {
         return (
-            <div style={{ marginTop: '20px' }}>
-                <NonIdealState
-                    title="Unexpected error"
-                    description={
-                        userError?.error.message ||
-                        healthError?.error.message ||
-                        organizationError?.error.message
-                    }
-                />
-            </div>
+            <ErrorState
+                error={
+                    userError?.error ||
+                    healthError?.error ||
+                    organizationError?.error
+                }
+            />
         );
     }
 
@@ -72,7 +71,9 @@ const Settings: FC = () => {
         !health.auth.disablePasswordAuthentication;
 
     const hasSocialLogin =
-        health.auth.google.oauth2ClientId || health.auth.okta.enabled;
+        health.auth.google.oauth2ClientId ||
+        health.auth.okta.enabled ||
+        health.auth.oneLogin.enabled;
 
     return (
         <PageWithSidebar alignItems="flex-start">
@@ -94,8 +95,7 @@ const Settings: FC = () => {
                             />
                         )}
 
-                        {(health.auth.google.oauth2ClientId ||
-                            health.auth.okta.enabled) && (
+                        {hasSocialLogin && (
                             <RouterMenuItem
                                 text="Social logins"
                                 exact
@@ -170,12 +170,7 @@ const Settings: FC = () => {
                         <Content>
                             <CardContainer>
                                 <Title>Password settings</Title>
-
-                                {hasSocialLogin ? (
-                                    <PasswordRecoveryForm />
-                                ) : (
-                                    <PasswordPanel />
-                                )}
+                                <PasswordPanel />
                             </CardContainer>
                         </Content>
                     </Route>
@@ -199,6 +194,7 @@ const Settings: FC = () => {
                                 <Title>Organization settings</Title>
                                 <OrganisationPanel />
                             </CardContainer>
+                            <DeleteOrganisationPanel />
                         </Content>
                     </Route>
                 )}

@@ -3,20 +3,28 @@ import {
     CartesianChart,
     CartesianSeriesType,
     ChartType,
+    CompleteCartesianChartLayout,
     EchartsGrid,
     EchartsLegend,
     Explore,
     getSeriesId,
     isCompleteEchartsConfig,
     isCompleteLayout,
+    MarkLineData,
     Series,
 } from '@lightdash/common';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    getMarkLineAxis,
+    ReferenceLineField,
+} from '../../components/common/ReferenceLine';
 import {
     getExpectedSeriesMap,
     mergeExistingAndExpectedSeries,
     sortDimensions,
 } from './utils';
+
+export const EMPTY_X_AXIS = 'empty_x_axis';
 
 type Args = {
     chartType: ChartType;
@@ -28,6 +36,63 @@ type Args = {
     >;
     columnOrder: string[];
     explore: Explore | undefined;
+};
+
+const applyReferenceLines = (
+    series: Series[],
+    dirtyLayout: Partial<Partial<CompleteCartesianChartLayout>> | undefined,
+    referenceLines: ReferenceLineField[],
+): Series[] => {
+    let appliedReferenceLines: string[] = []; // Don't apply the same reference line to multiple series
+    return series.map((serie) => {
+        const referenceLinesForSerie = referenceLines.filter(
+            (referenceLine) => {
+                if (referenceLine.fieldId === undefined) return false;
+                if (appliedReferenceLines.includes(referenceLine.fieldId))
+                    return false;
+                return (
+                    referenceLine.fieldId === serie.encode?.xRef.field ||
+                    referenceLine.fieldId === serie.encode?.yRef.field
+                );
+            },
+        );
+
+        if (referenceLinesForSerie.length === 0) return serie;
+        const markLineData: MarkLineData[] = referenceLinesForSerie.map(
+            (line) => {
+                if (line.fieldId === undefined) return line.data;
+                const value = line.data.xAxis || line.data.yAxis;
+                if (value === undefined) return line.data;
+                appliedReferenceLines.push(line.fieldId);
+
+                const axis = getMarkLineAxis(
+                    dirtyLayout?.xField,
+                    dirtyLayout?.flipAxes || false,
+                    line.fieldId,
+                );
+
+                return {
+                    ...line.data,
+                    xAxis: undefined,
+                    yAxis: undefined,
+                    [axis]: value,
+                };
+            },
+        );
+
+        return {
+            ...serie,
+            markLine: {
+                symbol: 'none',
+                lineStyle: {
+                    color: '#000',
+                    width: 3,
+                    type: 'solid',
+                },
+                data: markLineData,
+            },
+        };
+    });
 };
 
 const useCartesianChartConfig = ({
@@ -56,10 +121,17 @@ const useCartesianChartConfig = ({
     const [isStacked, setIsStacked] = useState<boolean>(isInitiallyStacked);
 
     const setLegend = useCallback((legend: EchartsLegend) => {
+        const removePropertiesWithAuto = Object.entries(
+            legend,
+        ).reduce<EchartsLegend>((acc, [key, value]) => {
+            if (value === 'auto') return acc;
+            return { ...acc, [key]: value };
+        }, {});
+
         setDirtyEchartsConfig((prevState) => {
             return {
                 ...prevState,
-                legend,
+                legend: removePropertiesWithAuto,
             };
         });
     }, []);
@@ -311,7 +383,8 @@ const useCartesianChartConfig = ({
         if (availableFields.length > 0 && chartType === ChartType.CARTESIAN) {
             setDirtyLayout((prev) => {
                 const isCurrentXFieldValid: boolean =
-                    !!prev?.xField && availableFields.includes(prev.xField);
+                    prev?.xField === EMPTY_X_AXIS ||
+                    (!!prev?.xField && availableFields.includes(prev.xField));
                 const currentValidYFields = prev?.yField
                     ? prev.yField.filter((y) => availableFields.includes(y))
                     : [];
@@ -448,6 +521,42 @@ const useCartesianChartConfig = ({
         setType,
     ]);
 
+    const selectedReferenceLines: ReferenceLineField[] = useMemo(() => {
+        if (dirtyEchartsConfig?.series === undefined) return [];
+        return dirtyEchartsConfig.series.reduce<ReferenceLineField[]>(
+            (acc, serie) => {
+                const data = serie.markLine?.data;
+                if (data !== undefined) {
+                    const referenceLine = data.map((markData) => {
+                        const axis =
+                            markData.xAxis !== undefined
+                                ? dirtyLayout?.flipAxes
+                                    ? serie.encode.yRef
+                                    : serie.encode.xRef
+                                : dirtyLayout?.flipAxes
+                                ? serie.encode.xRef
+                                : serie.encode.yRef;
+                        return {
+                            fieldId: axis.field,
+                            data: {
+                                label: serie.markLine?.label,
+                                lineStyle: serie.markLine?.lineStyle,
+                                ...markData,
+                            },
+                        };
+                    });
+
+                    return [...acc, ...referenceLine];
+                }
+                return acc;
+            },
+            [],
+        );
+    }, [dirtyEchartsConfig?.series, dirtyLayout?.flipAxes]);
+
+    const [referenceLines, setReferenceLines] = useState<ReferenceLineField[]>(
+        selectedReferenceLines,
+    );
     // Generate expected series
     useEffect(() => {
         if (isCompleteLayout(dirtyLayout) && resultsData) {
@@ -472,13 +581,27 @@ const useCartesianChartConfig = ({
                     expectedSeriesMap,
                     existingSeries: prev?.series || [],
                 });
+
+                const seriesWithReferenceLines = applyReferenceLines(
+                    newSeries,
+                    dirtyLayout,
+                    referenceLines,
+                );
+
                 return {
                     ...prev,
-                    series: newSeries,
+                    series: seriesWithReferenceLines,
                 };
             });
         }
-    }, [dirtyLayout, pivotKeys, resultsData, availableDimensions, isStacked]);
+    }, [
+        dirtyLayout,
+        pivotKeys,
+        resultsData,
+        availableDimensions,
+        isStacked,
+        referenceLines,
+    ]);
 
     const validCartesianConfig: CartesianChart | undefined = useMemo(
         () =>
@@ -530,6 +653,8 @@ const useCartesianChartConfig = ({
         setShowGridY,
         setInverseX,
         updateSeries,
+        referenceLines,
+        setReferenceLines,
     };
 };
 

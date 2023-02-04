@@ -8,6 +8,7 @@ import { convertDuckdbSchema } from './targets/duckdb';
 import { convertPostgresSchema } from './targets/postgres';
 import { convertRedshiftSchema } from './targets/redshift';
 import { convertSnowflakeSchema } from './targets/snowflake';
+import { convertTrinoSchema } from './targets/trino';
 import { renderProfilesYml } from './templating';
 import { LoadProfileArgs, Profiles, Target } from './types';
 
@@ -60,8 +61,10 @@ export const warehouseCredentialsFromDbtTarget = async (
             return convertRedshiftSchema(target);
         case 'databricks':
             return convertDatabricksSchema(target);
+        case 'trino':
+            return convertTrinoSchema(target);
         case 'duckdb':
-            return convertDatabricksSchema(target);
+            return convertDuckdbSchema(target);
         default:
             throw new ParseError(
                 `Sorry! Lightdash doesn't yet support ${target.type} dbt targets`,

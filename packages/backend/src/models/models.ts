@@ -1,6 +1,7 @@
 import { lightdashConfig } from '../config/lightdashConfig';
 import database from '../database/database';
 import { EncryptionService } from '../services/EncryptionService/EncryptionService';
+import { AnalyticsModel } from './AnalyticsModel';
 import { DashboardModel } from './DashboardModel/DashboardModel';
 import { PersonalAccessTokenModel } from './DashboardModel/PersonalAccessTokenModel';
 import { DbtCloudMetricsModel } from './DbtCloudMetricsModel';
@@ -12,6 +13,7 @@ import { OpenIdIdentityModel } from './OpenIdIdentitiesModel';
 import { OrganizationMemberProfileModel } from './OrganizationMemberProfileModel';
 import { OrganizationModel } from './OrganizationModel';
 import { PasswordResetLinkModel } from './PasswordResetLinkModel';
+import { PinnedListModel } from './PinnedListModel';
 import { ProjectModel } from './ProjectModel/ProjectModel';
 import { SavedChartModel } from './SavedChartModel';
 import { SearchModel } from './SearchModel';
@@ -62,3 +64,8 @@ export const shareModel = new ShareModel({
 export const slackAuthenticationModel = new SlackAuthenticationModel({
     database,
 });
+
+export const analyticsModel = new AnalyticsModel({
+    database,
+});
+export const pinnedListModel = new PinnedListModel({ database });

@@ -14,9 +14,15 @@ import {
 import ResourceList from '../components/common/ResourceList';
 import {
     ResourceBreadcrumbTitle,
+    ResourceEmptyStateHeader,
+    ResourceEmptyStateIcon,
     ResourceTag,
 } from '../components/common/ResourceList/ResourceList.styles';
 import { SortDirection } from '../components/common/ResourceList/ResourceTable';
+import {
+    ResourceListType,
+    wrapResourceList,
+} from '../components/common/ResourceList/ResourceTypeUtils';
 import { LoadingChart } from '../components/SimpleChart';
 import { useSavedCharts } from '../hooks/useSpaces';
 import { useApp } from '../providers/AppProvider';
@@ -81,33 +87,42 @@ const SavedQueries: FC = () => {
                         />
                     </PageBreadcrumbsWrapper>
 
-                    {userCanManageCharts &&
-                        !isDemo &&
-                        savedQueries.length > 0 && (
-                            <Button
-                                text="Create chart"
-                                icon="plus"
-                                intent="primary"
-                                onClick={handleCreateChart}
-                            />
-                        )}
+                    {userCanManageCharts && !isDemo && savedQueries.length > 0 && (
+                        <Button
+                            icon="plus"
+                            intent="primary"
+                            onClick={handleCreateChart}
+                        >
+                            Create chart
+                        </Button>
+                    )}
                 </PageHeader>
 
                 <ResourceList
-                    resourceIcon="chart"
-                    resourceType="chart"
-                    resourceList={savedQueries}
-                    defaultSort={{
-                        updatedAt: SortDirection.DESC,
-                    }}
-                    onClickCTA={
-                        !isDemo && userCanManageCharts
-                            ? handleCreateChart
-                            : undefined
-                    }
-                    getURL={({ uuid }) =>
-                        `/projects/${projectUuid}/saved/${uuid}`
-                    }
+                    items={wrapResourceList(
+                        savedQueries,
+                        ResourceListType.CHART,
+                    )}
+                    defaultSort={{ updatedAt: SortDirection.DESC }}
+                    renderEmptyState={() => (
+                        <>
+                            <ResourceEmptyStateIcon icon="chart" size={40} />
+
+                            <ResourceEmptyStateHeader>
+                                No charts added yet
+                            </ResourceEmptyStateHeader>
+
+                            {!isDemo && userCanManageCharts && (
+                                <Button
+                                    icon="plus"
+                                    intent="primary"
+                                    onClick={handleCreateChart}
+                                >
+                                    Create chart
+                                </Button>
+                            )}
+                        </>
+                    )}
                 />
             </PageContentWrapper>
         </Page>

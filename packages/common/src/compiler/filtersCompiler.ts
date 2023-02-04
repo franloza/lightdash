@@ -21,31 +21,40 @@ const formatTimestamp = (date: Date): string =>
 export const renderStringFilterSql = (
     dimensionSql: string,
     filter: FilterRule,
+    stringQuoteChar: string,
+    escapeStringQuoteChar: string,
 ): string => {
     const filterType = filter.operator;
+    const escapedFilterValues = filter.values?.map((v) =>
+        typeof v === 'string'
+            ? v.replaceAll(
+                  stringQuoteChar,
+                  `${escapeStringQuoteChar}${stringQuoteChar}`,
+              )
+            : v,
+    );
+
     switch (filter.operator) {
         case FilterOperator.EQUALS:
-            return !filter.values || filter.values.length === 0
+            return !escapedFilterValues || escapedFilterValues.length === 0
                 ? 'false'
-                : `(${dimensionSql}) IN (${filter.values
-                      .map((v) => `'${v}'`)
+                : `(${dimensionSql}) IN (${escapedFilterValues
+                      .map((v) => `${stringQuoteChar}${v}${stringQuoteChar}`)
                       .join(',')})`;
         case FilterOperator.NOT_EQUALS:
-            return !filter.values || filter.values.length === 0
+            return !escapedFilterValues || escapedFilterValues.length === 0
                 ? 'true'
-                : `(${dimensionSql}) NOT IN (${filter.values
-                      .map((v) => `'${v}'`)
+                : `(${dimensionSql}) NOT IN (${escapedFilterValues
+                      .map((v) => `${stringQuoteChar}${v}${stringQuoteChar}`)
                       .join(',')})`;
         case FilterOperator.INCLUDE:
-            const includesQuery = filter.values?.map(
-                (filterVal) =>
-                    `LOWER(${dimensionSql}) LIKE LOWER('%${filterVal}%')`,
+            const includesQuery = escapedFilterValues?.map(
+                (v) => `LOWER(${dimensionSql}) LIKE LOWER('%${v}%')`,
             );
             return includesQuery?.join('\n  OR\n  ') || 'true';
         case FilterOperator.NOT_INCLUDE:
-            const notIncludeQuery = filter.values?.map(
-                (filterVal) =>
-                    `LOWER(${dimensionSql}) NOT LIKE LOWER('%${filterVal}%')`,
+            const notIncludeQuery = escapedFilterValues?.map(
+                (v) => `LOWER(${dimensionSql}) NOT LIKE LOWER('%${v}%')`,
             );
             return notIncludeQuery?.join('\n  AND\n  ') || 'true';
         case FilterOperator.NULL:
@@ -53,8 +62,9 @@ export const renderStringFilterSql = (
         case FilterOperator.NOT_NULL:
             return `(${dimensionSql}) IS NOT NULL`;
         case FilterOperator.STARTS_WITH:
-            const startWithQuery = filter.values?.map(
-                (filterVal) => `(${dimensionSql}) LIKE '${filterVal}%'`,
+            const startWithQuery = escapedFilterValues?.map(
+                (v) =>
+                    `(${dimensionSql}) LIKE ${stringQuoteChar}${v}%${stringQuoteChar}`,
             );
             return startWithQuery?.join('\n  OR\n  ') || 'true';
         default:
@@ -64,7 +74,7 @@ export const renderStringFilterSql = (
     }
 };
 
-const renderNumberFilterSql = (
+export const renderNumberFilterSql = (
     dimensionSql: string,
     filter: FilterRule,
 ): string => {
@@ -84,8 +94,12 @@ const renderNumberFilterSql = (
             return `(${dimensionSql}) IS NOT NULL`;
         case FilterOperator.GREATER_THAN:
             return `(${dimensionSql}) > (${filter.values?.[0] || 0})`;
+        case FilterOperator.GREATER_THAN_OR_EQUAL:
+            return `(${dimensionSql}) >= (${filter.values?.[0] || 0})`;
         case FilterOperator.LESS_THAN:
             return `(${dimensionSql}) < (${filter.values?.[0] || 0})`;
+        case FilterOperator.LESS_THAN_OR_EQUAL:
+            return `(${dimensionSql}) <= (${filter.values?.[0] || 0})`;
         default:
             throw Error(
                 `No function implemented to render sql for filter type ${filterType} on dimension of number type`,
@@ -128,7 +142,7 @@ export const renderDateFilterSql = (
             return `(${dimensionSql}) <= ('${dateFormatter(
                 filter.values?.[0],
             )}')`;
-        case FilterOperator.IN_THE_PAST:
+        case FilterOperator.IN_THE_PAST: {
             const unitOfTime: UnitOfTime =
                 filter.settings?.unitOfTime || UnitOfTime.days;
             const completed: boolean = !!filter.settings?.completed;
@@ -152,6 +166,48 @@ export const renderDateFilterSql = (
             return `((${dimensionSql}) >= ('${dateFormatter(
                 moment().subtract(filter.values?.[0], unitOfTime).toDate(),
             )}') AND (${dimensionSql}) <= ('${untilDate}'))`;
+        }
+        case FilterOperator.IN_THE_NEXT: {
+            const unitOfTime: UnitOfTime =
+                filter.settings?.unitOfTime || UnitOfTime.days;
+            const completed: boolean = !!filter.settings?.completed;
+
+            if (completed) {
+                const fromDate = moment(
+                    moment().add(1, unitOfTime).startOf(unitOfTime),
+                ).toDate();
+                const toDate = dateFormatter(
+                    moment(fromDate)
+                        .add(filter.values?.[0], unitOfTime)
+                        .toDate(),
+                );
+                return `((${dimensionSql}) >= ('${dateFormatter(
+                    fromDate,
+                )}') AND (${dimensionSql}) < ('${toDate}'))`;
+            }
+            const fromDate = dateFormatter(moment().toDate());
+            const toDate = dateFormatter(
+                moment().add(filter.values?.[0], unitOfTime).toDate(),
+            );
+            return `((${dimensionSql}) >= ('${fromDate}') AND (${dimensionSql}) <= ('${toDate}'))`;
+        }
+        case FilterOperator.IN_THE_CURRENT: {
+            const unitOfTime: UnitOfTime =
+                filter.settings?.unitOfTime || UnitOfTime.days;
+            const fromDate = dateFormatter(
+                moment().startOf(unitOfTime).toDate(),
+            );
+            const untilDate = dateFormatter(
+                moment().endOf(unitOfTime).toDate(),
+            );
+            return `((${dimensionSql}) >= ('${fromDate}') AND (${dimensionSql}) <= ('${untilDate}'))`;
+        }
+        case FilterOperator.IN_BETWEEN: {
+            const startDate = dateFormatter(filter.values?.[0]);
+            const endDate = dateFormatter(filter.values?.[1]);
+
+            return `((${dimensionSql}) >= ('${startDate}') AND (${dimensionSql}) <= ('${endDate}'))`;
+        }
         default:
             throw Error(
                 `No function implemented to render sql for filter type ${filterType} on dimension of date type`,
@@ -181,20 +237,29 @@ const renderBooleanFilterSql = (
 export const renderFilterRuleSql = (
     filterRule: FilterRule,
     field: CompiledField,
-    quoteChar: string,
+    fieldQuoteChar: string,
+    stringQuoteChar: string,
+    escapeStringQuoteChar: string,
 ): string => {
     const fieldType = field.type;
     const fieldSql = isMetric(field)
-        ? `${quoteChar}${filterRule.target.fieldId}${quoteChar}`
+        ? `${fieldQuoteChar}${filterRule.target.fieldId}${fieldQuoteChar}`
         : field.compiledSql;
 
     switch (field.type) {
         case DimensionType.STRING:
         case MetricType.STRING: {
-            return renderStringFilterSql(fieldSql, filterRule);
+            return renderStringFilterSql(
+                fieldSql,
+                filterRule,
+                stringQuoteChar,
+                escapeStringQuoteChar,
+            );
         }
         case DimensionType.NUMBER:
         case MetricType.NUMBER:
+        case MetricType.PERCENTILE:
+        case MetricType.MEDIAN:
         case MetricType.AVERAGE:
         case MetricType.COUNT:
         case MetricType.COUNT_DISTINCT:

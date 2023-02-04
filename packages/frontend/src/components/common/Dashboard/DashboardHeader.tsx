@@ -1,21 +1,15 @@
 import { Button, Classes, Divider, Intent, Menu } from '@blueprintjs/core';
 import { MenuItem2, Popover2, Tooltip2 } from '@blueprintjs/popover2';
-import {
-    Dashboard,
-    Space,
-    UpdateDashboardDetails,
-    UpdatedByUser,
-} from '@lightdash/common';
+import { Dashboard, Space, UpdatedByUser } from '@lightdash/common';
 import { useState } from 'react';
-import { Link, useHistory, useParams } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import { useApp } from '../../../providers/AppProvider';
 import { useTracking } from '../../../providers/TrackingProvider';
 import { EventName } from '../../../types/Events';
 import AddTileButton from '../../DashboardTiles/AddTileButton';
-import UpdateDashboardModal from '../../SavedDashboards/UpdateDashboardModal';
 import ShareLinkButton from '../../ShareLinkButton';
+import DashboardUpdateModal from '../modal/DashboardUpdateModal';
 import {
-    IconWithRightMargin,
     PageActionsContainer,
     PageDetailsContainer,
     PageHeaderContainer,
@@ -24,8 +18,10 @@ import {
     PageTitleContainer,
     SeparatorDot,
 } from '../PageHeader';
+import SpaceInfo from '../PageHeader/SpaceInfo';
+import { UpdatedInfo } from '../PageHeader/UpdatedInfo';
+import ViewInfo from '../PageHeader/ViewInfo';
 import SpaceActionModal, { ActionType } from '../SpaceActionModal';
-import { UpdatedInfo } from '../UpdatedInfo';
 
 type DashboardHeaderProps = {
     spaces?: Space[];
@@ -34,6 +30,7 @@ type DashboardHeaderProps = {
     dashboardSpaceName?: string;
     dashboardSpaceUuid?: string;
     dashboardUpdatedAt: Date;
+    dashboardViews: number;
     dashboardUpdatedByUser?: UpdatedByUser;
     hasDashboardChanged: boolean;
     isEditMode: boolean;
@@ -41,7 +38,6 @@ type DashboardHeaderProps = {
     onAddTiles: (tiles: Dashboard['tiles'][number][]) => void;
     onCancel: () => void;
     onSaveDashboard: () => void;
-    onUpdate: (values?: UpdateDashboardDetails) => void;
     onDelete: () => void;
     onDuplicate: () => void;
     onMoveToSpace: (spaceUuid: string) => void;
@@ -53,6 +49,7 @@ const DashboardHeader = ({
     dashboardName,
     dashboardSpaceName,
     dashboardSpaceUuid,
+    dashboardViews,
     dashboardUpdatedAt,
     dashboardUpdatedByUser,
     hasDashboardChanged,
@@ -61,7 +58,6 @@ const DashboardHeader = ({
     onAddTiles,
     onCancel,
     onSaveDashboard,
-    onUpdate,
     onDelete,
     onDuplicate,
     onMoveToSpace,
@@ -78,11 +74,6 @@ const DashboardHeader = ({
     const handleEditClick = () => {
         setIsUpdating(true);
         track({ name: EventName.UPDATE_DASHBOARD_NAME_CLICKED });
-    };
-
-    const handleUpdate = (value?: UpdateDashboardDetails) => {
-        onUpdate(value);
-        setIsUpdating(false);
     };
 
     const { user } = useApp();
@@ -113,10 +104,11 @@ const DashboardHeader = ({
                         />
                     )}
 
-                    <UpdateDashboardModal
-                        dashboardUuid={dashboardUuid}
+                    <DashboardUpdateModal
+                        uuid={dashboardUuid}
                         isOpen={isUpdating}
-                        onClose={handleUpdate}
+                        onClose={() => setIsUpdating(false)}
+                        onConfirm={() => setIsUpdating(false)}
                     />
                 </PageTitleContainer>
 
@@ -126,20 +118,18 @@ const DashboardHeader = ({
                         user={dashboardUpdatedByUser}
                     />
 
+                    <SeparatorDot icon="dot" size={6} />
+
+                    <ViewInfo views={dashboardViews} />
+
                     {dashboardSpaceName && (
                         <>
                             <SeparatorDot icon="dot" size={6} />
 
-                            <IconWithRightMargin
-                                icon="folder-close"
-                                size={10}
+                            <SpaceInfo
+                                link={`/projects/${projectUuid}/spaces/${dashboardSpaceUuid}`}
+                                name={dashboardSpaceName}
                             />
-
-                            <Link
-                                to={`/projects/${projectUuid}/spaces/${dashboardSpaceUuid}`}
-                            >
-                                {dashboardSpaceName}
-                            </Link>
                         </>
                     )}
                 </PageDetailsContainer>

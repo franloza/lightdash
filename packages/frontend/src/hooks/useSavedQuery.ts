@@ -6,7 +6,12 @@ import {
     UpdateMultipleSavedChart,
     UpdateSavedChart,
 } from '@lightdash/common';
-import { useMutation, useQuery, useQueryClient } from 'react-query';
+import {
+    useMutation,
+    useQuery,
+    useQueryClient,
+    UseQueryOptions,
+} from 'react-query';
 import { useHistory, useParams } from 'react-router-dom';
 import { lightdashApi } from '../api';
 import useToaster from './toaster/useToaster';
@@ -76,14 +81,16 @@ const addVersionSavedQuery = async ({
 
 interface Args {
     id?: string;
+    useQueryOptions?: UseQueryOptions<SavedChart, ApiError>;
 }
 
-export const useSavedQuery = ({ id }: Args = {}) =>
+export const useSavedQuery = ({ id, useQueryOptions }: Args = {}) =>
     useQuery<SavedChart, ApiError>({
         queryKey: ['saved_query', id],
         queryFn: () => getSavedQuery(id || ''),
         enabled: id !== undefined,
         retry: false,
+        ...useQueryOptions,
     });
 
 export const useDeleteMutation = () => {
@@ -185,7 +192,7 @@ export const useUpdateMutation = (savedQueryUuid?: string) => {
     );
 };
 
-export const useMoveMutation = (savedQueryUuid?: string) => {
+export const useMoveChartMutation = () => {
     const history = useHistory();
     const queryClient = useQueryClient();
     const { projectUuid } = useParams<{ projectUuid: string }>();
@@ -194,14 +201,10 @@ export const useMoveMutation = (savedQueryUuid?: string) => {
     return useMutation<
         SavedChart,
         ApiError,
-        Pick<SavedChart, 'name' | 'spaceUuid'>
+        Pick<SavedChart, 'uuid' | 'name' | 'spaceUuid'>
     >(
-        (data) => {
-            if (savedQueryUuid) {
-                return updateSavedQuery(savedQueryUuid, data);
-            }
-            throw new Error('Saved chart ID is undefined');
-        },
+        ({ uuid, name, spaceUuid }) =>
+            updateSavedQuery(uuid, { name, spaceUuid }),
         {
             mutationKey: ['saved_query_move'],
             onSuccess: async (data) => {
@@ -259,23 +262,26 @@ export const useCreateMutation = () => {
     );
 };
 
-export const useDuplicateMutation = (
-    chartUuid: string,
-    showRedirectButton: boolean = false,
+type DuplicateChartMutationOptions = {
+    showRedirectButton?: boolean;
+};
+
+export const useDuplicateChartMutation = (
+    options?: DuplicateChartMutationOptions,
 ) => {
     const history = useHistory();
     const { projectUuid } = useParams<{ projectUuid: string }>();
     const queryClient = useQueryClient();
     const { showToastSuccess, showToastError } = useToaster();
-    return useMutation<SavedChart, ApiError, string>(
-        () => duplicateSavedQuery(projectUuid, chartUuid),
+    return useMutation<SavedChart, ApiError, SavedChart['uuid']>(
+        (chartUuid) => duplicateSavedQuery(projectUuid, chartUuid),
         {
             mutationKey: ['saved_query_create', projectUuid],
             onSuccess: async (data) => {
                 await queryClient.invalidateQueries('spaces');
                 await queryClient.invalidateQueries(['space', projectUuid]);
 
-                if (!showRedirectButton) {
+                if (!options?.showRedirectButton) {
                     history.push({
                         pathname: `/projects/${projectUuid}/saved/${data.uuid}`,
                     });
@@ -283,7 +289,7 @@ export const useDuplicateMutation = (
 
                 showToastSuccess({
                     title: `Chart successfully duplicated!`,
-                    action: showRedirectButton
+                    action: options?.showRedirectButton
                         ? {
                               text: 'Open chart',
                               icon: 'arrow-right',

@@ -87,6 +87,8 @@ export const dashboard: Dashboard = {
     },
     spaceUuid: 'spaceUuid',
     spaceName: 'space name',
+    pinnedListUuid: undefined,
+    views: 1,
 };
 
 export const dashboardsDetails: DashboardBasicDetails[] = [
@@ -98,6 +100,8 @@ export const dashboardsDetails: DashboardBasicDetails[] = [
         description: dashboard.description,
         updatedAt: dashboard.updatedAt,
         spaceUuid: 'spaceUuid',
+        pinnedListUuid: undefined,
+        views: 1,
     },
 ];
 

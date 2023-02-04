@@ -14,7 +14,7 @@ import {
 } from './field';
 import { parseFilters } from './filterGrammar';
 import { AdditionalMetric } from './metricQuery';
-import { TableBase } from './table';
+import { OrderFieldsByStrategy, TableBase } from './table';
 import { TimeFrames } from './timeFrames';
 
 export enum SupportedDbtAdapter {
@@ -23,6 +23,7 @@ export enum SupportedDbtAdapter {
     SNOWFLAKE = 'snowflake',
     REDSHIFT = 'redshift',
     POSTGRES = 'postgres',
+    TRINO = 'trino',
     DUCKDB = 'duckdb',
 }
 
@@ -53,10 +54,15 @@ type DbtModelLightdashConfig = {
     label?: string;
     joins?: DbtModelJoin[];
     metrics?: Record<string, DbtModelLightdashMetric>;
+    order_fields_by?: OrderFieldsByStrategy;
 };
 type DbtModelJoin = {
     join: string;
     sql_on: string;
+    alias?: string;
+    label?: string;
+
+    fields?: string[];
 };
 type DbtColumnMetadata = DbtColumnLightdashConfig & {};
 type DbtColumnLightdashConfig = {
@@ -92,6 +98,7 @@ export type DbtColumnLightdashMetric = {
     urls?: FieldUrl[];
     show_underlying_values?: string[];
     filters?: { [key: string]: any }[];
+    percentile?: number;
 };
 
 export type DbtModelLightdashMetric = DbtColumnLightdashMetric &
@@ -105,6 +112,7 @@ export const normaliseModelDatabase = (
         case SupportedDbtAdapter.POSTGRES:
         case SupportedDbtAdapter.BIGQUERY:
         case SupportedDbtAdapter.SNOWFLAKE:
+        case SupportedDbtAdapter.TRINO:
         case SupportedDbtAdapter.REDSHIFT:
             if (model.database === null) {
                 throw new ParseError(
@@ -356,6 +364,7 @@ export const convertModelMetric = ({
     groupLabel: metric.group_label,
     showUnderlyingValues: metric.show_underlying_values,
     filters: parseFilters(metric.filters),
+    percentile: metric.percentile,
     ...(metric.urls ? { urls: metric.urls } : {}),
 });
 type ConvertColumnMetricArgs = Omit<ConvertModelMetricArgs, 'metric'> & {

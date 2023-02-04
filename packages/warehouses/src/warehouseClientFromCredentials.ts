@@ -10,6 +10,7 @@ import { DuckdbWarehouseClient } from './warehouseClients/DuckdbsWarehouseClient
 import { PostgresWarehouseClient } from './warehouseClients/PostgresWarehouseClient';
 import { RedshiftWarehouseClient } from './warehouseClients/RedshiftWarehouseClient';
 import { SnowflakeWarehouseClient } from './warehouseClients/SnowflakeWarehouseClient';
+import { TrinoWarehouseClient } from './warehouseClients/TrinoWarehouseClient';
 
 export const warehouseClientFromCredentials = (
     credentials: CreateWarehouseCredentials,
@@ -25,6 +26,8 @@ export const warehouseClientFromCredentials = (
             return new BigqueryWarehouseClient(credentials);
         case WarehouseTypes.DATABRICKS:
             return new DatabricksWarehouseClient(credentials);
+        case WarehouseTypes.TRINO:
+            return new TrinoWarehouseClient(credentials);
         case WarehouseTypes.DUCKDB:
             return new DuckdbWarehouseClient(credentials);
         default:

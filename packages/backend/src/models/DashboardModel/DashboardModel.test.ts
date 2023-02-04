@@ -74,10 +74,15 @@ describe('DashboardModel', () => {
     afterEach(() => {
         tracker.reset();
     });
+
     test('should get dashboard by uuid', async () => {
         tracker.on
             .select(
-                queryMatcher(DashboardsTableName, [expectedDashboard.uuid, 1]),
+                queryMatcher(DashboardsTableName, [
+                    expectedDashboard.uuid,
+                    expectedDashboard.uuid,
+                    1,
+                ]),
             )
             .response([
                 {
@@ -110,10 +115,15 @@ describe('DashboardModel', () => {
         expect(dashboard).toEqual(expectedDashboard);
         expect(tracker.history.select).toHaveLength(3);
     });
+
     test("should error if dashboard isn't found", async () => {
         tracker.on
             .select(
-                queryMatcher(DashboardsTableName, [expectedDashboard.uuid, 1]),
+                queryMatcher(DashboardsTableName, [
+                    expectedDashboard.uuid,
+                    expectedDashboard.uuid,
+                    1,
+                ]),
             )
             .response([]);
 
@@ -121,6 +131,7 @@ describe('DashboardModel', () => {
             model.getById(expectedDashboard.uuid),
         ).rejects.toThrowError(NotFoundError);
     });
+
     test('should get all by project uuid', async () => {
         const projectUuid = 'project uuid';
         tracker.on
@@ -134,6 +145,7 @@ describe('DashboardModel', () => {
         expect(dashboard).toEqual(expectedAllDashboards);
         expect(tracker.history.select).toHaveLength(1);
     });
+
     test('should create dashboard with tile ids', async () => {
         const spaceUuid = 'space uuid';
         tracker.on
@@ -157,13 +169,7 @@ describe('DashboardModel', () => {
             )
             .response([dashboardVersionEntry]);
         tracker.on
-            .insert(
-                queryMatcher(DashboardViewsTableName, [
-                    dashboardVersionEntry.dashboard_version_id,
-                    createDashboard.filters,
-                    'Default',
-                ]),
-            )
+            .insert(DashboardViewsTableName)
             .response([dashboardViewEntry]);
         tracker.on
             .insert(
@@ -236,7 +242,17 @@ describe('DashboardModel', () => {
         expect(tracker.history.select).toHaveLength(2);
         expect(tracker.history.insert).toHaveLength(5);
         expect(tracker.history.update).toHaveLength(1);
+        // validate query to create dashboard view
+        expect(tracker.history.insert[2].sql).toContain(
+            DashboardViewsTableName,
+        );
+        expect(tracker.history.insert[2].bindings).toEqual([
+            dashboardVersionEntry.dashboard_version_id,
+            JSON.stringify(createDashboard.filters),
+            'Default',
+        ]);
     });
+
     test('should update dashboard', async () => {
         const dashboardUuid = 'dashboard uuid';
         tracker.on
@@ -249,7 +265,13 @@ describe('DashboardModel', () => {
             )
             .response([]);
         tracker.on
-            .select(queryMatcher(DashboardsTableName, [dashboardUuid, 1]))
+            .select(
+                queryMatcher(DashboardsTableName, [
+                    dashboardUuid,
+                    dashboardUuid,
+                    1,
+                ]),
+            )
             .response([dashboardWithVersionEntry]);
         tracker.on
             .select(
@@ -273,10 +295,17 @@ describe('DashboardModel', () => {
         await model.update(dashboardUuid, updateDashboard);
         expect(tracker.history.update).toHaveLength(1);
     });
+
     test('should delete dashboard', async () => {
         const dashboardUuid = 'dashboard uuid';
         tracker.on
-            .select(queryMatcher(DashboardsTableName, [dashboardUuid, 1]))
+            .select(
+                queryMatcher(DashboardsTableName, [
+                    dashboardUuid,
+                    dashboardUuid,
+                    1,
+                ]),
+            )
             .response([dashboardWithVersionEntry]);
         tracker.on
             .select(
@@ -303,6 +332,7 @@ describe('DashboardModel', () => {
         await model.delete(dashboardUuid);
         expect(tracker.history.delete).toHaveLength(1);
     });
+
     test("should error on create dashboard version if dashboard isn't found", async () => {
         tracker.on
             .select(
@@ -314,6 +344,7 @@ describe('DashboardModel', () => {
             model.addVersion(expectedDashboard.uuid, addDashboardVersion, user),
         ).rejects.toThrowError(NotFoundError);
     });
+
     test('should create dashboard version with all tile types', async () => {
         tracker.on
             .select(
@@ -329,13 +360,7 @@ describe('DashboardModel', () => {
             )
             .response([dashboardVersionEntry]);
         tracker.on
-            .insert(
-                queryMatcher(DashboardViewsTableName, [
-                    dashboardVersionEntry.dashboard_version_id,
-                    addDashboardVersionWithAllTiles.filters,
-                    'Default',
-                ]),
-            )
+            .insert(DashboardViewsTableName)
             .response([dashboardViewEntry]);
         // Create saved chart tile
         tracker.on
@@ -452,6 +477,15 @@ describe('DashboardModel', () => {
         expect(tracker.history.select).toHaveLength(2);
         expect(tracker.history.insert).toHaveLength(8);
         expect(tracker.history.update).toHaveLength(1);
+        // validate query to create dashboard view
+        expect(tracker.history.insert[1].sql).toContain(
+            DashboardViewsTableName,
+        );
+        expect(tracker.history.insert[1].bindings).toEqual([
+            dashboardVersionEntry.dashboard_version_id,
+            JSON.stringify(addDashboardVersionWithAllTiles.filters),
+            'Default',
+        ]);
     });
     test('should create dashboard version with ids', async () => {
         tracker.on
@@ -468,13 +502,7 @@ describe('DashboardModel', () => {
             )
             .response([dashboardVersionEntry]);
         tracker.on
-            .insert(
-                queryMatcher(DashboardViewsTableName, [
-                    dashboardVersionEntry.dashboard_version_id,
-                    addDashboardVersionWithTileIds.filters,
-                    'Default',
-                ]),
-            )
+            .insert(DashboardViewsTableName)
             .response([dashboardViewEntry]);
         tracker.on
             .insert(
@@ -529,7 +557,17 @@ describe('DashboardModel', () => {
         expect(tracker.history.select).toHaveLength(2);
         expect(tracker.history.insert).toHaveLength(4);
         expect(tracker.history.update).toHaveLength(1);
+        // validate query to create dashboard view
+        expect(tracker.history.insert[1].sql).toContain(
+            DashboardViewsTableName,
+        );
+        expect(tracker.history.insert[1].bindings).toEqual([
+            dashboardVersionEntry.dashboard_version_id,
+            JSON.stringify(addDashboardVersionWithTileIds.filters),
+            'Default',
+        ]);
     });
+
     test('should create dashboard version without a chart', async () => {
         tracker.on
             .select(
@@ -545,13 +583,7 @@ describe('DashboardModel', () => {
             )
             .response([dashboardVersionEntry]);
         tracker.on
-            .insert(
-                queryMatcher(DashboardViewsTableName, [
-                    dashboardVersionEntry.dashboard_version_id,
-                    addDashboardVersionWithoutChart.filters,
-                    'Default',
-                ]),
-            )
+            .insert(DashboardViewsTableName)
             .response([dashboardViewEntry]);
         tracker.on
             .insert(
@@ -588,7 +620,17 @@ describe('DashboardModel', () => {
         expect(tracker.history.select).toHaveLength(1);
         expect(tracker.history.insert).toHaveLength(3);
         expect(tracker.history.update).toHaveLength(1);
+        // validate query to create dashboard view
+        expect(tracker.history.insert[1].sql).toContain(
+            DashboardViewsTableName,
+        );
+        expect(tracker.history.insert[1].bindings).toEqual([
+            dashboardVersionEntry.dashboard_version_id,
+            JSON.stringify(addDashboardVersionWithoutChart.filters),
+            'Default',
+        ]);
     });
+
     test("should error on create dashboard version if saved chart isn't found", async () => {
         tracker.on
             .select(
@@ -604,13 +646,7 @@ describe('DashboardModel', () => {
             )
             .response([dashboardVersionEntry]);
         tracker.on
-            .insert(
-                queryMatcher(DashboardViewsTableName, [
-                    dashboardVersionEntry.dashboard_version_id,
-                    addDashboardVersion.filters,
-                    'Default',
-                ]),
-            )
+            .insert(DashboardViewsTableName)
             .response([dashboardViewEntry]);
         tracker.on
             .insert(

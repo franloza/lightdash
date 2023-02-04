@@ -35,9 +35,11 @@ import {
 } from '@lightdash/common';
 import groupBy from 'lodash-es/groupBy';
 import toNumber from 'lodash-es/toNumber';
+import moment from 'moment';
 import { useMemo } from 'react';
 import { defaultGrid } from '../../components/ChartConfigPanel/Grid';
 import { useVisualizationContext } from '../../components/LightdashVisualization/VisualizationProvider';
+import { EMPTY_X_AXIS } from '../cartesianChartConfig/useCartesianChartConfig';
 import { useOrganisation } from '../organisation/useOrganisation';
 import usePlottedData from '../plottedData/usePlottedData';
 
@@ -60,6 +62,9 @@ const getAxisTypeFromField = (item?: Field | TableCalculation): string => {
         switch (item.type) {
             case DimensionType.NUMBER:
             case MetricType.NUMBER:
+            case MetricType.PERCENTILE:
+            case MetricType.MEDIAN:
+
             case MetricType.AVERAGE:
             case MetricType.COUNT:
             case MetricType.COUNT_DISTINCT:
@@ -99,9 +104,12 @@ const getAxisType = ({
     const topAxisType = getAxisTypeFromField(
         topAxisXId ? itemMap[topAxisXId] : undefined,
     );
-    const bottomAxisType = getAxisTypeFromField(
-        bottomAxisXId ? itemMap[bottomAxisXId] : undefined,
-    );
+    const bottomAxisType =
+        bottomAxisXId === EMPTY_X_AXIS
+            ? 'category'
+            : getAxisTypeFromField(
+                  bottomAxisXId ? itemMap[bottomAxisXId] : undefined,
+              );
     // horizontal bar chart needs the type 'category' in the left/right axis
     const defaultRightAxisType = getAxisTypeFromField(
         rightAxisYId ? itemMap[rightAxisYId] : undefined,
@@ -251,6 +259,199 @@ const removeEmptyProperties = <T = Record<any, any>>(obj: T | undefined) => {
                 : sum,
         {},
     );
+};
+
+export const getMinAndMaxValues = (
+    axis: string | undefined,
+    rows: ResultRow[],
+): (string | number)[] => {
+    if (!axis) return [];
+    return rows
+        .map((row) => row[axis]?.value?.raw)
+        .reduce<(string | number)[]>(
+            (acc, value) => {
+                if (typeof value === 'number') {
+                    const min = acc[0] < value ? acc[0] : value;
+                    const max = acc[1] > value ? acc[1] : value;
+                    return [min, max];
+                } else if (typeof value === 'string') {
+                    if (moment(value, 'YYYY-MM-DD', false).isValid()) {
+                        // is date
+                        const min = acc[0] < value ? acc[0] : value;
+                        const max = acc[1] > value ? acc[1] : value;
+                        return [min, max];
+                    }
+                    const number = parseFloat(value);
+                    if (!isNaN(number)) {
+                        // is float
+                        const min = acc[0] < number ? acc[0] : number;
+                        const max = acc[1] > number ? acc[1] : number;
+                        return [min, max];
+                    }
+                }
+                return acc;
+            },
+            [0, 0],
+        );
+};
+
+const getMinAndMaxReferenceLines = (
+    leftAxisYId: string | undefined,
+    rightAxisYId: string | undefined,
+    bottomAxisXId: string | undefined,
+    resultsData: ApiQueryResults | undefined,
+    series: Series[] | undefined,
+    items: Array<Field | TableCalculation>,
+) => {
+    if (resultsData === undefined || series === undefined) return {};
+    // Skip method if there are no reference lines
+    const hasReferenceLines =
+        series.find((serie) => {
+            const data = serie.markLine?.data;
+            return data !== undefined && data.length > 0;
+        }) !== undefined;
+
+    if (!hasReferenceLines) return {};
+
+    const getMinAndMaxReferenceLineValues = (
+        axis: string,
+        fieldId: string | undefined,
+    ): (string | number)[] => {
+        const values = series.flatMap<string | number>((serie) => {
+            const serieFieldId =
+                axis === 'yAxis' ? serie.encode.yRef : serie.encode.xRef;
+            if (serieFieldId.field !== fieldId) return [];
+
+            if (!serie.markLine) return [];
+            const field = findItem(items, serieFieldId.field);
+
+            const fieldType = isField(field) ? field.type : undefined;
+
+            switch (fieldType) {
+                case DimensionType.NUMBER:
+                case MetricType.NUMBER:
+                case MetricType.AVERAGE:
+                case MetricType.COUNT:
+                case MetricType.COUNT_DISTINCT:
+                case MetricType.SUM:
+                case MetricType.MEDIAN:
+                case MetricType.PERCENTILE:
+                case MetricType.MIN:
+                case MetricType.MAX:
+                    return serie.markLine?.data.reduce<number[]>(
+                        (acc, data) => {
+                            try {
+                                const axisValue =
+                                    axis === 'yAxis' ? data.yAxis : data.xAxis;
+                                if (axisValue === undefined) return acc;
+                                const value = parseInt(axisValue);
+                                if (isNaN(value)) return acc;
+                                return [...acc, value];
+                            } catch (e) {
+                                console.error(
+                                    `Unexpected value when getting numbers min/max for ${fieldType}: ${JSON.stringify(
+                                        data,
+                                    )}`,
+                                );
+                                return acc;
+                            }
+                        },
+                        [],
+                    );
+
+                case DimensionType.TIMESTAMP:
+                case DimensionType.DATE:
+                case MetricType.DATE:
+                    return serie.markLine?.data.reduce<string[]>(
+                        (acc, data) => {
+                            try {
+                                const axisValue =
+                                    axis === 'yAxis' ? data.yAxis : data.xAxis;
+                                if (axisValue === undefined) return acc;
+                                return [...acc, axisValue];
+                            } catch (e) {
+                                console.error(
+                                    `Unexpected value when getting date min/max for ${fieldType}: ${data}`,
+                                );
+                                return acc;
+                            }
+                        },
+                        [],
+                    );
+                default: {
+                    // We will try getting values for TableCalculations
+                    return serie.markLine?.data.reduce<number[]>(
+                        (acc, data) => {
+                            try {
+                                const axisValue =
+                                    axis === 'yAxis' ? data.yAxis : data.xAxis;
+                                if (axisValue === undefined) return acc;
+                                const value = parseInt(axisValue);
+                                if (isNaN(value)) return acc;
+                                return [...acc, value];
+                            } catch (e) {
+                                console.error(
+                                    `Unexpected value when getting numbers min/max for ${fieldType}: ${JSON.stringify(
+                                        data,
+                                    )}`,
+                                );
+                                return acc;
+                            }
+                        },
+                        [],
+                    );
+                }
+            }
+        });
+
+        if (values.length === 0) return [];
+        const min: string | number = values.sort()[0];
+        const max = values.reverse()[0];
+        return [min, max];
+    };
+
+    const [minValueLeftY, maxValueLeftY] = getMinAndMaxValues(
+        leftAxisYId,
+        resultsData.rows,
+    );
+    const [minValueRightY, maxValueRightY] = getMinAndMaxValues(
+        rightAxisYId,
+        resultsData.rows,
+    );
+    const [minValueX, maxValueX] = getMinAndMaxValues(
+        bottomAxisXId,
+        resultsData.rows,
+    );
+
+    const [minReferenceLineX, maxReferenceLineX] =
+        getMinAndMaxReferenceLineValues('xAxis', bottomAxisXId);
+    const [minReferenceLineLeftY, maxReferenceLineLeftY] =
+        getMinAndMaxReferenceLineValues('yAxis', leftAxisYId);
+    const [minReferenceLineRightY, maxReferenceLineRightY] =
+        getMinAndMaxReferenceLineValues('yAxis', rightAxisYId);
+
+    return {
+        referenceLineMinX:
+            minReferenceLineX < minValueX ? minReferenceLineX : undefined,
+        referenceLineMaxX:
+            maxReferenceLineX > maxValueX ? maxReferenceLineX : undefined,
+        referenceLineMinLeftY:
+            minReferenceLineLeftY < minValueLeftY
+                ? minReferenceLineLeftY
+                : undefined,
+        referenceLineMaxLeftY:
+            maxReferenceLineLeftY > maxValueLeftY
+                ? maxReferenceLineLeftY
+                : undefined,
+        referenceLineMinRightY:
+            minReferenceLineRightY < minValueRightY
+                ? minReferenceLineRightY
+                : undefined,
+        referenceLineMaxRightY:
+            maxReferenceLineRightY > maxValueRightY
+                ? maxReferenceLineRightY
+                : undefined,
+    };
 };
 type GetPivotSeriesArg = {
     series: Series;
@@ -624,6 +825,22 @@ const getEchartAxis = ({
             rightAxisYId,
         });
 
+    const {
+        referenceLineMinX,
+        referenceLineMaxX,
+        referenceLineMinLeftY,
+        referenceLineMaxLeftY,
+        referenceLineMinRightY,
+        referenceLineMaxRightY,
+    } = getMinAndMaxReferenceLines(
+        leftAxisYId,
+        rightAxisYId,
+        bottomAxisXId,
+        resultsData,
+        validCartesianConfig.eChartsConfig.series,
+        items,
+    );
+
     return {
         xAxis: [
             {
@@ -643,11 +860,11 @@ const getEchartAxis = ({
                 min: validCartesianConfig.layout.flipAxes
                     ? xAxisConfiguration?.[0]?.min ||
                       maybeGetAxisDefaultMinValue(allowFirstAxisDefaultRange)
-                    : undefined,
+                    : referenceLineMinX,
                 max: validCartesianConfig.layout.flipAxes
                     ? xAxisConfiguration?.[0]?.max ||
                       maybeGetAxisDefaultMaxValue(allowFirstAxisDefaultRange)
-                    : undefined,
+                    : referenceLineMaxX,
                 nameLocation: 'center',
                 nameGap: 30,
                 nameTextStyle: {
@@ -711,10 +928,12 @@ const getEchartAxis = ({
                       }),
                 min: !validCartesianConfig.layout.flipAxes
                     ? yAxisConfiguration?.[0]?.min ||
+                      referenceLineMinLeftY ||
                       maybeGetAxisDefaultMinValue(allowFirstAxisDefaultRange)
                     : undefined,
                 max: !validCartesianConfig.layout.flipAxes
                     ? yAxisConfiguration?.[0]?.max ||
+                      referenceLineMaxLeftY ||
                       maybeGetAxisDefaultMaxValue(allowFirstAxisDefaultRange)
                     : undefined,
                 nameTextStyle: {
@@ -746,10 +965,12 @@ const getEchartAxis = ({
                       }),
                 min: !validCartesianConfig.layout.flipAxes
                     ? yAxisConfiguration?.[1]?.min ||
+                      referenceLineMinRightY ||
                       maybeGetAxisDefaultMinValue(allowSecondAxisDefaultRange)
                     : undefined,
                 max: !validCartesianConfig.layout.flipAxes
                     ? yAxisConfiguration?.[1]?.max ||
+                      referenceLineMaxRightY ||
                       maybeGetAxisDefaultMaxValue(allowSecondAxisDefaultRange)
                     : undefined,
                 nameTextStyle: {
@@ -1019,7 +1240,13 @@ const useEcharts = () => {
             },
             dataset: {
                 id: 'lightdashResults',
-                source: getResultValues(rows, true),
+                source:
+                    validCartesianConfig?.layout?.xField === EMPTY_X_AXIS
+                        ? getResultValues(rows, true).map((s) => ({
+                              ...s,
+                              [EMPTY_X_AXIS]: ' ',
+                          }))
+                        : getResultValues(rows, true),
             },
             tooltip: {
                 show: true,
@@ -1040,7 +1267,6 @@ const useEcharts = () => {
         }),
         [axis, colors, rows, series, stackedSeries, validCartesianConfig],
     );
-
     if (
         !explore ||
         series.length <= 0 ||
@@ -1049,7 +1275,6 @@ const useEcharts = () => {
     ) {
         return undefined;
     }
-
     return eChartsOptions;
 };
 

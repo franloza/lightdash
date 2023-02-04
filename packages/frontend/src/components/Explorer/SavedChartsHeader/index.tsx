@@ -8,10 +8,10 @@ import {
 } from '@blueprintjs/core';
 import { MenuItem2, Popover2, Tooltip2 } from '@blueprintjs/popover2';
 import { FC, useEffect, useState } from 'react';
-import { Link, useHistory, useParams } from 'react-router-dom';
-import useMoveToSpace from '../../../hooks/useMoveToSpace';
+import { useHistory, useParams } from 'react-router-dom';
 import {
-    useDuplicateMutation,
+    useDuplicateChartMutation,
+    useMoveChartMutation,
     useUpdateMutation,
 } from '../../../hooks/useSavedQuery';
 import useSearchParams from '../../../hooks/useSearchParams';
@@ -20,10 +20,10 @@ import { useApp } from '../../../providers/AppProvider';
 import { useExplorerContext } from '../../../providers/ExplorerProvider';
 import { TrackSection } from '../../../providers/TrackingProvider';
 import { SectionName } from '../../../types/Events';
-import DeleteActionModal from '../../common/modal/DeleteActionModal';
-import MoveToSpaceModal from '../../common/modal/MoveToSpaceModal';
+import ChartCreateModal from '../../common/modal/ChartCreateModal';
+import ChartDeleteModal from '../../common/modal/ChartDeleteModal';
+import ChartUpdateModal from '../../common/modal/ChartUpdateModal';
 import {
-    IconWithRightMargin,
     PageActionsContainer,
     PageDetailsContainer,
     PageHeaderContainer,
@@ -32,11 +32,10 @@ import {
     PageTitleContainer,
     SeparatorDot,
 } from '../../common/PageHeader';
-import { UpdatedInfo } from '../../common/UpdatedInfo';
+import SpaceInfo from '../../common/PageHeader/SpaceInfo';
+import { UpdatedInfo } from '../../common/PageHeader/UpdatedInfo';
+import ViewInfo from '../../common/PageHeader/ViewInfo';
 import AddTilesToDashboardModal from '../../SavedDashboards/AddTilesToDashboardModal';
-import CreateSavedQueryModal from '../../SavedQueries/CreateSavedQueryModal';
-import RenameSavedChartModal from '../../SavedQueries/RenameSavedChartModal';
-import ShareLinkButton from '../../ShareLinkButton';
 import SaveChartButton from '../SaveChartButton';
 
 const SavedChartsHeader: FC = () => {
@@ -65,20 +64,16 @@ const SavedChartsHeader: FC = () => {
     const [isQueryModalOpen, setIsQueryModalOpen] = useState<boolean>(false);
     const [isAddToDashboardModalOpen, setIsAddToDashboardModalOpen] =
         useState<boolean>(false);
-    const [isMoveToSpaceModalOpen, setIsMoveToSpaceModalOpen] =
-        useState<boolean>(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] =
         useState<boolean>(false);
     const { user } = useApp();
     const { data: spaces } = useSpaces(projectUuid);
-    const { moveChart } = useMoveToSpace(true, savedChart);
+    const { mutate: moveChartToSpace } = useMoveChartMutation();
     const updateSavedChart = useUpdateMutation(savedChart?.uuid);
 
     const space = spaces?.find((s) => s.uuid === savedChart?.spaceUuid);
 
-    const { mutate: duplicateChart } = useDuplicateMutation(
-        savedChart?.uuid || '',
-    );
+    const { mutate: duplicateChart } = useDuplicateChartMutation();
     const chartId = savedChart?.uuid || '';
 
     useEffect(() => {
@@ -171,15 +166,12 @@ const SavedChartsHeader: FC = () => {
                                         minimal
                                     />
                                 )}
-                                {isRenamingChart && (
-                                    <RenameSavedChartModal
-                                        savedChartUuid={savedChart.uuid}
-                                        isOpen={isRenamingChart}
-                                        onClose={() =>
-                                            setIsRenamingChart(false)
-                                        }
-                                    />
-                                )}
+                                <ChartUpdateModal
+                                    isOpen={isRenamingChart}
+                                    uuid={savedChart.uuid}
+                                    onClose={() => setIsRenamingChart(false)}
+                                    onConfirm={() => setIsRenamingChart(false)}
+                                />
                             </PageTitleContainer>
 
                             <PageDetailsContainer>
@@ -188,18 +180,18 @@ const SavedChartsHeader: FC = () => {
                                     user={savedChart.updatedByUser}
                                 />
 
+                                <SeparatorDot icon="dot" size={6} />
+
+                                <ViewInfo views={savedChart.views} />
+
                                 {space && (
                                     <>
                                         <SeparatorDot icon="dot" size={6} />
-                                        <IconWithRightMargin
-                                            icon="folder-close"
-                                            size={10}
+
+                                        <SpaceInfo
+                                            link={`/projects/${projectUuid}/spaces/${space.uuid}`}
+                                            name={space.name}
                                         />
-                                        <Link
-                                            to={`/projects/${projectUuid}/spaces/${space.uuid}`}
-                                        >
-                                            {space.name}
-                                        </Link>
                                     </>
                                 )}
                             </PageDetailsContainer>
@@ -312,7 +304,8 @@ const SavedChartsHeader: FC = () => {
                                                             savedChart.spaceUuid !==
                                                                 spaceToMove.uuid
                                                         )
-                                                            moveChart({
+                                                            moveChartToSpace({
+                                                                uuid: savedChart.uuid,
                                                                 name: savedChart.name,
                                                                 spaceUuid:
                                                                     spaceToMove.uuid,
@@ -346,10 +339,11 @@ const SavedChartsHeader: FC = () => {
             </PageHeaderContainer>
 
             {unsavedChartVersion && (
-                <CreateSavedQueryModal
+                <ChartCreateModal
                     isOpen={isQueryModalOpen}
                     savedData={unsavedChartVersion}
                     onClose={() => setIsQueryModalOpen(false)}
+                    onConfirm={() => setIsQueryModalOpen(false)}
                 />
             )}
             {savedChart && isAddToDashboardModalOpen && (
@@ -360,21 +354,25 @@ const SavedChartsHeader: FC = () => {
                 />
             )}
             {isDeleteDialogOpen && savedChart?.uuid && (
-                <DeleteActionModal
+                <ChartDeleteModal
+                    uuid={savedChart.uuid}
                     isOpen={isDeleteDialogOpen}
                     onClose={() => setIsDeleteDialogOpen(false)}
-                    uuid={savedChart.uuid}
-                    name={savedChart.name}
-                    isChart
-                    isExplorer
-                />
-            )}
-            {isMoveToSpaceModalOpen && savedChart?.uuid && (
-                <MoveToSpaceModal
-                    isOpen={isDeleteDialogOpen}
-                    onClose={() => setIsMoveToSpaceModalOpen(false)}
-                    uuid={savedChart.uuid}
-                    isChart
+                    onConfirm={() => {
+                        history.listen((location, action) => {
+                            if (action === 'POP') {
+                                if (location.pathname.includes('/tables/')) {
+                                    history.push(
+                                        `/projects/${projectUuid}/tables`,
+                                    );
+                                }
+                            }
+                        });
+
+                        history.push('/');
+
+                        setIsDeleteDialogOpen(false);
+                    }}
                 />
             )}
         </TrackSection>
